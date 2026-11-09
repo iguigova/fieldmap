@@ -71,7 +71,8 @@
           <button id="sample" class="plain" type="button">Try a sample reading list</button>
         </div>
         <p class="meta">Zotero, Mendeley and most reference managers export BibTeX. The file stays
-          in your browser; nothing is uploaded.</p>
+          in your browser. Only the DOIs of papers that aren't on the map are sent, to OpenAlex, to
+          look up what those papers cite.</p>
         <p id="status" role="status" aria-live="polite"></p>
       </div>
     </section>
@@ -106,9 +107,12 @@
       <div>
         <p>Every article from eight general biostatistics journals, from OpenAlex. Papers are
           grouped by the words in their titles and abstracts and by the papers they cite. Each
-          group is named by the words that set it apart, so the names are rough. A paper in your
-          file is matched by its DOI when it's on the map. Otherwise it's placed by its title words. That's rough: for
-          papers on the map, the title alone picks the same subfield only about half the time.</p>
+          group is named by the words that set it apart, so the names are rough.</p>
+        <p>A paper in your file is matched by its DOI when it's on the map. Otherwise it's placed by
+          the papers it cites, looked up on OpenAlex, and failing that by its title words. Both are
+          rough. Tested on a fifth of the map's own papers, held back while the rest built the
+          subfields, citations picked the paper's own subfield two times in three, and title words
+          about half the time.</p>
         <p>The code and method are on <a href="https://github.com/iguigova/fieldmap">GitHub</a>.</p>
       </div>
     </section>
@@ -118,11 +122,17 @@
 </div>
 
 <script type="module">
-import { HEIGHT, WIDTH, entries, layout, place, sample, tally } from './fieldmap.js';
+import {
+  HEIGHT, WIDTH, citations, entries, layout, place, readMap, sample, tally, toLookUp,
+} from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
+const WAYS = {
+  doi: 'matched by DOI', citations: 'placed by citations', title: 'placed by title words', none: 'not placed',
+};
 let fieldMap = null;
 let discs = null;
+let latest = 0;
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, text) => {
@@ -136,6 +146,11 @@ const svgEl = (tag, attrs = {}, text) => {
   Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
   if (text !== undefined) node.textContent = text;
   return node;
+};
+const getJson = async (url) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
 };
 const yours = (n) => (n ? `${n} of yours` : 'a gap: none of yours');
 
@@ -207,25 +222,36 @@ const say = (text, error = false) => {
   $('status').textContent = text;
 };
 
-const overlay = (text) => {
-  const found = entries(text);
+const summary = (placed, unreached) => {
+  const how = (way) => placed.filter((p) => p.how === way).length;
+  const counts = tally(placed);
+  const gaps = fieldMap.clusters.filter((c) => !counts[c.id]).length;
+  const parts = Object.entries(WAYS).filter(([way]) => how(way)).map(([way, words]) => `${how(way)} ${words}`);
+  const missed = unreached ? ` OpenAlex could not be reached for ${unreached}, so those fell back to their title words.` : '';
+  return `${placed.length} papers read: ${parts.join(', ')}.${missed} ` +
+    `${gaps} of ${fieldMap.clusters.length} subfields are gaps.`;
+};
+
+// A file loaded while an earlier one is still being looked up replaces it.
+const overlay = async (found) => {
+  const run = ++latest;
   if (!found.length) {
     say('No BibTeX entries with a DOI or a title were found in that file. ' +
         'Export your library as BibTeX (.bib) and try again.', true);
     return;
   }
-  const placed = found.map((e) => place(fieldMap, e));
-  const counts = tally(placed);
-  const how = (way) => placed.filter((p) => p.how === way).length;
-  const gaps = fieldMap.clusters.filter((c) => !counts[c.id]).length;
-  say(`${found.length} papers read: ${how('doi')} matched by DOI, ${how('title')} placed by title words, ` +
-      `${how('none')} not placed. ${gaps} of ${fieldMap.clusters.length} subfields are gaps.`);
-  draw(counts);
+  const dois = toLookUp(fieldMap, found);
+  if (dois.length) say(`Looking up what ${dois.length} papers cite on OpenAlex…`);
+  const { refs, unreached } = await citations(getJson, dois);
+  if (run !== latest) return;
+  const placed = found.map((e) => place(fieldMap, e, refs.get(e.doi)));
+  say(summary(placed, unreached.length));
+  draw(tally(placed));
 };
 
 $('bibtex').addEventListener('change', async (event) => {
   const file = event.target.files[0];
-  if (file) overlay(await file.text());
+  if (file) overlay(entries(await file.text()));
 });
 $('sample').addEventListener('click', () => overlay(sample(fieldMap)));
 
@@ -238,9 +264,8 @@ const describe = (m) => {
 };
 
 $('map').setAttribute('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
-fetch('data/map.json')
-  .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-  .then((m) => { fieldMap = m; discs = layout(m.clusters); describe(m); draw(null); })
+getJson('data/map.json')
+  .then((m) => { fieldMap = readMap(m); discs = layout(m.clusters); describe(m); draw(null); })
   .catch((e) => say(`The map could not be loaded (${e.message}). Reload the page to try again.`, true));
 </script>
 </body>

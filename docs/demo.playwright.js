@@ -1,9 +1,10 @@
 // Records the README's demo as numbered PNG frames, one per tenth of a second
-// of the finished GIF. Run it through a Playwright `page` with the site served
-// at BASE, into an empty FRAMES; docs/make_demo.sh turns the frames into the GIF.
+// of the finished GIF. Run it through a Playwright `page` started in the site
+// root, with that folder served at BASE; FRAMES is relative to it and starts
+// empty. docs/make_demo.sh turns the frames into the GIF.
 async (page) => {
   const BASE = 'http://127.0.0.1:8765/fieldmap/';
-  const FRAMES = '/home/ig/src/oceanhue/.playwright-mcp/frames';
+  const FRAMES = 'fieldmap/docs/frames';
 
   let n = 0;
   const shot = async () => page.screenshot({ path: `${FRAMES}/f${String(n++).padStart(4, '0')}.png` });

@@ -28,7 +28,9 @@ most-cited papers. Last, the theme switch turns the page dark.](docs/demo.gif)
 
 *Try a sample reading list* shows the same thing without a library.
 
-The file is read in the browser and is never uploaded.
+The file is read in the browser. Only the DOIs of papers that aren't on the
+map leave it: they are sent to [OpenAlex](https://openalex.org) to look up
+what those papers cite.
 
 ## What the map covers
 
@@ -43,10 +45,13 @@ The file is read in the browser and is never uploaded.
   rest, such as *missing, imputation, mi, multiple, missingness*. A few
   groups are topics rather than methods, such as *covid* and *survey*.
 - **Placement:** a paper in the map's journals is matched by its DOI. Any
-  other paper is placed by the words in its title, which picks the same
-  subfield as its DOI would about half the time. A title that matches no
-  subfield closely is left unplaced; the line under *Load a BibTeX file*
-  gives the counts.
+  other paper with a DOI is placed by the works it cites, as OpenAlex lists
+  them. A paper whose citations match no subfield, or that has no DOI, is
+  placed by the words in its title, and left unplaced when its title
+  matches no subfield closely. On a fifth of the map's own papers, held
+  back while the rest built the subfields, citations picked the paper's
+  own subfield two times in three and title words about half the time.
+  The line under *Load a BibTeX file* gives the counts.
 
 ## Build it
 
@@ -69,10 +74,10 @@ Tests: `uv run pytest` for the pipeline and `node --test tests/*.test.mjs`
 for `fieldmap.js`, each at full line coverage. Lint: `uv run ruff check
 src tests`.
 
-The demo GIF: `docs/demo.playwright.js` records frames into
-`/home/ig/src/oceanhue/.playwright-mcp/frames` through a Playwright page
-with the site served at `http://127.0.0.1:8765/`, and `docs/make_demo.sh`
-turns them into `docs/demo.gif`.
+The demo GIF: serve the folder above at `http://127.0.0.1:8765/` and run
+`docs/demo.playwright.js` through a Playwright page started in that folder.
+It records frames into `docs/frames/`, and `docs/make_demo.sh` turns them
+into `docs/demo.gif`.
 
 ## Licence
 

@@ -64,17 +64,21 @@ TERM_SETTINGS = {
     "min_df": 5,
     "max_df": 0.4,
 }
+# A paper's references are its terms, kept when two papers share them.
+REF_SETTINGS = {"analyzer": list, "min_df": 2}
 # A journal's front matter that OpenAlex types as an article.
 FRONT_MATTER = "Cover Picture:"
 DIMENSIONS = 100
 NAME_TERMS = 5
 STARTERS = 5
 SHIPPED_TERMS = 150
+SHIPPED_REFS = 300
+# A title scoring below this share of the map's own titles is left unplaced.
+FLOOR_PERCENTILE = 5
 
 
 @dataclass(frozen=True)
 class Paper:
-    id: str
     doi: str | None
     title: str
     year: int
@@ -87,15 +91,18 @@ def short_doi(doi: str | None) -> str | None:
     return doi.removeprefix("https://doi.org/").lower() if doi else None
 
 
+def short_id(url: str) -> str:
+    return url.rsplit("/", 1)[-1]
+
+
 def paper(work: dict) -> Paper:
     return Paper(
-        id=work["id"].rsplit("/", 1)[-1],
         doi=short_doi(work.get("doi")),
         title=work["title"],
         year=work["publication_year"],
         cites=work["cited_by_count"],
         text=f"{work['title']} {abstract(work['abstract_inverted_index'])}",
-        refs=tuple(work.get("referenced_works") or ()),
+        refs=tuple(map(short_id, work.get("referenced_works") or ())),
     )
 
 
@@ -117,8 +124,9 @@ def text_matrix(corpus: list[Paper]):
 
 
 def refs_matrix(corpus: list[Paper]):
-    vectorizer = TfidfVectorizer(analyzer=lambda refs: refs, min_df=2)
-    return vectorizer.fit_transform(p.refs for p in corpus)
+    return TfidfVectorizer(**REF_SETTINGS).fit_transform(
+        p.refs for p in corpus
+    )
 
 
 def vectors(corpus: list[Paper], dimensions: int) -> np.ndarray:
@@ -131,17 +139,30 @@ def clusters(points: np.ndarray, count: int) -> np.ndarray:
     return KMeans(count, random_state=0, n_init=10).fit_predict(points)
 
 
-# ---- Names: class-based TF-IDF over each cluster's words -----------------
+# ---- Profiles: each cluster's terms by class-based TF-IDF ----------------
 
 
-def class_tfidf(corpus: list[Paper], labels: np.ndarray, count: int):
-    vectorizer = CountVectorizer(**TERM_SETTINGS)
-    counts = vectorizer.fit_transform(p.text for p in corpus)
+def class_tfidf(settings: dict, docs, labels: np.ndarray, count: int):
+    vectorizer = CountVectorizer(**settings)
+    counts = vectorizer.fit_transform(docs)
     members = np.eye(count)[labels].T
     per_cluster = np.asarray(members @ counts)
-    tf = per_cluster / per_cluster.sum(axis=1, keepdims=True)
+    totals = np.maximum(per_cluster.sum(axis=1, keepdims=True), 1)
     idf = np.log1p(per_cluster.sum() / count / per_cluster.sum(axis=0))
-    return tf * idf, vectorizer.get_feature_names_out()
+    return per_cluster / totals * idf, vectorizer.get_feature_names_out()
+
+
+def weights(scores: np.ndarray, vocabulary, top: int) -> dict[str, float]:
+    ranked = [i for i in np.argsort(-scores)[:top] if scores[i] > 0]
+    peak = scores[ranked[0]] if ranked else 1
+    return {
+        str(vocabulary[i]): round(float(scores[i] / peak), 4) for i in ranked
+    }
+
+
+def profiles(settings, docs, labels, count, top) -> list[dict]:
+    scores, vocabulary = class_tfidf(settings, docs, labels, count)
+    return [weights(row, vocabulary, top) for row in scores]
 
 
 def overlaps(term: str, chosen: list[str]) -> bool:
@@ -161,14 +182,19 @@ def name(ranked: list[str]) -> list[str]:
     return chosen
 
 
-def ranked_terms(scores: np.ndarray, vocabulary) -> list[str]:
-    return [str(vocabulary[i]) for i in np.argsort(-scores)[:SHIPPED_TERMS]]
+# ---- Title placement: the page scores a title's terms the same way -------
 
 
-def term_weights(scores: np.ndarray, vocabulary) -> dict[str, float]:
-    top = np.argsort(-scores)[:SHIPPED_TERMS]
-    peak = scores[top[0]]
-    return {str(vocabulary[i]): round(float(scores[i] / peak), 4) for i in top}
+title_terms = CountVectorizer(**TERM_SETTINGS).build_analyzer()
+
+
+def best_score(terms: list[str], term_profiles: list[dict]) -> float:
+    return max(sum(w.get(t, 0) for t in terms) for w in term_profiles)
+
+
+def title_floor(corpus: list[Paper], term_profiles: list[dict]) -> float:
+    best = [best_score(title_terms(p.title), term_profiles) for p in corpus]
+    return round(float(np.percentile(best, FLOOR_PERCENTILE)), 4)
 
 
 # ---- Layout --------------------------------------------------------------
@@ -196,15 +222,16 @@ def starters(members: list[Paper]) -> list[dict]:
     return [starter(p) for p in by_cites[:STARTERS]]
 
 
-def cluster_entry(c, members, scores, vocabulary, position) -> dict:
+def cluster_entry(c, members, position, terms, refs) -> dict:
     return {
         "id": c,
-        "name": name(ranked_terms(scores, vocabulary)),
+        "name": name(list(terms)),
         "size": len(members),
         "x": round(float(position[0]), 4),
         "y": round(float(position[1]), 4),
         "starters": starters(members),
-        "terms": term_weights(scores, vocabulary),
+        "terms": terms,
+        "refs": refs,
     }
 
 
@@ -212,7 +239,10 @@ def field_map(works: list[dict], count: int, dimensions: int) -> dict:
     corpus = papers(works)
     points = vectors(corpus, dimensions)
     labels = clusters(points, count)
-    scores, vocabulary = class_tfidf(corpus, labels, count)
+    texts = [p.text for p in corpus]
+    cited = [p.refs for p in corpus]
+    terms = profiles(TERM_SETTINGS, texts, labels, count, SHIPPED_TERMS)
+    refs = profiles(REF_SETTINGS, cited, labels, count, SHIPPED_REFS)
     positions = layout(points, labels, count)
     members = [
         [p for p, k in zip(corpus, labels, strict=True) if k == c]
@@ -220,8 +250,10 @@ def field_map(works: list[dict], count: int, dimensions: int) -> dict:
     ]
     return {
         "papers": len(corpus),
+        "stop_words": STOP_WORDS,
+        "title_floor": title_floor(corpus, terms),
         "clusters": [
-            cluster_entry(c, members[c], scores[c], vocabulary, positions[c])
+            cluster_entry(c, members[c], positions[c], terms[c], refs[c])
             for c in range(count)
         ],
         "dois": {

@@ -1,14 +1,16 @@
 // The page's logic that needs no page: reading BibTeX, placing papers on the
 // map, laying the map out. index.html draws what these return.
 
-const STOP = new Set(('a an and are as at be by for from in into is it of on or that the this ' +
-  'to with we our its using based via new approach method methods model models data study ' +
-  'analysis statistical').split(' '));
-// Off-field titles score under 0.3 and 95% of the map's own titles score
-// 0.45 or more, so a title below this floor is left unplaced.
-export const TITLE_FLOOR = 0.4;
 const SAMPLE_CLUSTERS = 8;
 const SAMPLE_PER_CLUSTER = 3;
+const OPENALEX = 'https://api.openalex.org/works';
+// OpenAlex takes up to 100 values in one filter; a DOI can name two works.
+const LOOKUP_BATCH = 50;
+const LOOKUP_PAGE = 200;
+// The pipeline's tokenizer: runs of two or more word characters.
+const WORD = /[\p{L}\p{N}_]{2,}/gu;
+// A DOI holding a filter separator cannot be looked up.
+const SEPARATOR = /[,|]/;
 
 export const WIDTH = 1000;
 export const HEIGHT = 720;
@@ -33,39 +35,77 @@ export const entries = (text) => text.split(/@\w+\s*[{(]/).slice(1)
   .map((e) => ({ doi: cleanDoi(field(e, 'doi')), title: field(e, 'title') }))
   .filter((e) => e.doi || e.title);
 
-// ---- Placing a paper: by DOI, else by its title words --------------------
+export const sample = (fieldMap) => [...fieldMap.clusters]
+  .sort((a, b) => b.size - a.size)
+  .slice(0, SAMPLE_CLUSTERS)
+  .flatMap((c) => c.starters.slice(0, SAMPLE_PER_CLUSTER))
+  .map(({ doi, title }) => ({ doi, title }));
 
-export const titleTerms = (title) => {
-  const words = (title.toLowerCase().match(/[a-z0-9-]+/g) ?? []).filter((w) => !STOP.has(w));
+// ---- Citations: what a paper off the map cites, from OpenAlex ------------
+
+export const shortId = (url) => url.slice(url.lastIndexOf('/') + 1);
+
+export const toLookUp = (fieldMap, found) => [...new Set(found
+  .map((e) => e.doi)
+  .filter((doi) => doi && !(doi in fieldMap.dois) && !SEPARATOR.test(doi)))];
+
+const batches = (items) => Array.from(
+  { length: Math.ceil(items.length / LOOKUP_BATCH) },
+  (_, i) => items.slice(i * LOOKUP_BATCH, (i + 1) * LOOKUP_BATCH));
+
+export const lookupUrl = (dois) => `${OPENALEX}?filter=${encodeURIComponent(`doi:${dois.join('|')}`)}` +
+  `&select=doi,referenced_works&per_page=${LOOKUP_PAGE}`;
+
+const remember = (refs, works) => works.forEach((w) =>
+  refs.set(cleanDoi(w.doi), w.referenced_works.map(shortId)));
+
+// The references of each DOI OpenAlex knows, and the DOIs it was not reached for.
+export const citations = async (getJson, dois) => {
+  const refs = new Map();
+  const unreached = [];
+  for (const batch of batches(dois)) {
+    try {
+      remember(refs, (await getJson(lookupUrl(batch))).results);
+    } catch {
+      unreached.push(...batch);
+    }
+  }
+  return { refs, unreached };
+};
+
+// ---- Placing a paper: by DOI, else its citations, else its title words ---
+
+export const readMap = (json) => ({ ...json, stopWords: new Set(json.stop_words) });
+
+export const titleTerms = (stopWords, title) => {
+  const words = (title.toLowerCase().match(WORD) ?? []).filter((w) => !stopWords.has(w));
   return [...words, ...words.slice(1).map((w, i) => `${words[i]} ${w}`)];
 };
 
-const score = (terms, cluster) => terms.reduce((s, t) => s + (cluster.terms[t] ?? 0), 0);
+const score = (terms, weights) => terms.reduce((s, t) => s + (weights[t] ?? 0), 0);
 
-const byTitle = (fieldMap, title) => {
-  const terms = titleTerms(title);
-  return fieldMap.clusters
-    .map((c) => ({ id: c.id, s: score(terms, c) }))
-    .reduce((a, b) => (b.s > a.s ? b : a), { id: null, s: TITLE_FLOOR }).id;
-};
+const best = (fieldMap, profile, terms, floor) => fieldMap.clusters
+  .map((c) => ({ id: c.id, s: score(terms, c[profile]) }))
+  .reduce((a, b) => (b.s > a.s ? b : a), { id: null, s: floor }).id;
 
-export const place = (fieldMap, entry) => {
+const byCitations = (fieldMap, refs) => (refs ? best(fieldMap, 'refs', refs, 0) : null);
+
+const byTitle = (fieldMap, title) =>
+  (title ? best(fieldMap, 'terms', titleTerms(fieldMap.stopWords, title), fieldMap.title_floor) : null);
+
+// refs: the works the entry cites, or undefined when they are not known.
+export const place = (fieldMap, entry, refs) => {
   if (entry.doi && entry.doi in fieldMap.dois) return { cluster: fieldMap.dois[entry.doi], how: 'doi' };
-  const cluster = entry.title ? byTitle(fieldMap, entry.title) : null;
-  return { cluster, how: cluster === null ? 'none' : 'title' };
+  const cited = byCitations(fieldMap, refs);
+  if (cited !== null) return { cluster: cited, how: 'citations' };
+  const titled = byTitle(fieldMap, entry.title);
+  return { cluster: titled, how: titled === null ? 'none' : 'title' };
 };
 
 export const tally = (placed) => placed.reduce((counts, p) => {
   if (p.cluster !== null) counts[p.cluster] = (counts[p.cluster] ?? 0) + 1;
   return counts;
 }, {});
-
-export const sample = (fieldMap) => [...fieldMap.clusters]
-  .sort((a, b) => b.size - a.size)
-  .slice(0, SAMPLE_CLUSTERS)
-  .flatMap((c) => c.starters.slice(0, SAMPLE_PER_CLUSTER))
-  .map((p, i) => `@article{s${i}, title = {${p.title}}, doi = {${p.doi ?? ''}}}`)
-  .join('\n');
 
 // ---- Layout: circles and their labels, kept apart ------------------------
 

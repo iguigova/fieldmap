@@ -1,4 +1,11 @@
+import json
+from pathlib import Path
+
+import numpy as np
+
 from fieldmap import build
+
+TITLE_TERMS = json.loads(Path("tests/title_terms.json").read_text())
 
 
 def built(works):
@@ -55,3 +62,30 @@ def test_layout_spans_the_unit_square(works):
 def test_name_skips_terms_that_repeat_a_chosen_one():
     ranked = ["missing", "missing data", "data missing", "a", "b", "c", "d"]
     assert build.name(ranked) == ["missing", "a", "b", "c", "d"]
+
+
+def test_a_cluster_profiles_the_works_its_papers_cite(works):
+    for c in built(works)["clusters"]:
+        theme = c["name"][0]
+        assert set(c["refs"]) == {f"W{theme}{n}" for n in range(3)}
+        assert max(c["refs"].values()) == 1
+
+
+def test_weights_keep_only_terms_that_score():
+    vocabulary = np.array(["a", "b", "c"])
+    assert build.weights(np.array([2.0, 0, 1.0]), vocabulary, 3) == {
+        "a": 1,
+        "c": 0.5,
+    }
+    assert build.weights(np.zeros(3), vocabulary, 3) == {}
+
+
+def test_the_map_ships_how_the_page_reads_titles(works):
+    field_map = built(works)
+    assert field_map["stop_words"] == build.STOP_WORDS
+    assert 0 < field_map["title_floor"] <= 1
+
+
+def test_title_terms_match_the_fixture_the_page_is_tested_on():
+    for case in TITLE_TERMS:
+        assert build.title_terms(case["title"]) == case["terms"]

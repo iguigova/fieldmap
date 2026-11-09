@@ -1,21 +1,29 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  HEIGHT, TITLE_FLOOR, WIDTH, cleanDoi, entries, layout, place, sample, shortName, tally, titleTerms,
+  HEIGHT, WIDTH, citations, cleanDoi, entries, layout, lookupUrl, place, readMap, sample, shortId, shortName,
+  tally, titleTerms, toLookUp,
 } from '../fieldmap.js';
 
-const cluster = (id, name, terms, size = 10, x = 0.5, y = 0.5) => ({
-  id, name, terms, size, x, y,
-  starters: [1, 2, 3, 4].map((n) => ({ title: `${name[0]} ${n}`, doi: n === 4 ? null : `10.1/${id}${n}` })),
+const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
+const SHIPPED = read('../data/map.json');
+const TITLE_TERMS = read('./title_terms.json');
+
+const cluster = (id, name, terms, refs = {}, size = 10, x = 0.5, y = 0.5) => ({
+  id, name, terms, refs, size, x, y,
+  starters: [1, 2, 3, 4].map((n) => ({ title: `${name[0]} ${n}`, doi: n === 4 ? null : `10.1/${id}${n}`, cites: n })),
 });
-const FIELD_MAP = {
+const FIELD_MAP = readMap({
+  stop_words: ['a', 'of', 'model', 'data'],
+  title_floor: 0.6,
   clusters: [
-    cluster(0, ['missing', 'imputation'], { missing: 1, imputation: 0.8 }, 30),
-    cluster(1, ['spatial', 'disease'], { spatial: 1, disease: 0.5 }, 20),
+    cluster(0, ['missing', 'imputation'], { missing: 1, imputation: 0.8 }, { W1: 1, W2: 0.5 }, 30),
+    cluster(1, ['spatial', 'disease'], { spatial: 1, disease: 0.5 }, { W3: 1 }, 20),
   ],
   dois: { '10.1/abc': 1 },
-};
+});
 
 test('a DOI is lowercased and loses its resolver', () => {
   assert.equal(cleanDoi('https://dx.doi.org/10.1/ABC'), '10.1/abc');
@@ -31,31 +39,62 @@ test('entries read braced, nested and quoted fields and skip empty ones', () => 
   ]);
 });
 
-test('title terms drop stop words and add neighbouring pairs', () => {
-  assert.deepEqual(titleTerms('A model of missing data imputation'), ['missing', 'imputation', 'missing imputation']);
-  assert.deepEqual(titleTerms('---'), ['---']);
-  assert.deepEqual(titleTerms('!!'), []);
+test('title terms are the terms the pipeline makes of the same title', () => {
+  const stopWords = new Set(SHIPPED.stop_words);
+  TITLE_TERMS.forEach(({ title, terms }) => assert.deepEqual(titleTerms(stopWords, title), terms));
 });
 
 test('a paper on the map is placed by its DOI', () => {
-  assert.deepEqual(place(FIELD_MAP, { doi: '10.1/abc', title: 'missing' }), { cluster: 1, how: 'doi' });
+  assert.deepEqual(place(FIELD_MAP, { doi: '10.1/abc', title: 'missing' }, ['W1']), { cluster: 1, how: 'doi' });
 });
 
-test('any other paper is placed by its title words above the floor', () => {
-  assert.ok(TITLE_FLOOR < 1);
-  assert.deepEqual(place(FIELD_MAP, { doi: '10.9/zz', title: 'Missing imputation' }), { cluster: 0, how: 'title' });
-  assert.deepEqual(place(FIELD_MAP, { doi: null, title: 'Medieval trapeze artists' }), { cluster: null, how: 'none' });
-  assert.deepEqual(place(FIELD_MAP, { doi: '10.9/zz', title: null }), { cluster: null, how: 'none' });
+test('a paper off the map is placed by the works it cites', () => {
+  assert.deepEqual(place(FIELD_MAP, { doi: '10.9/zz', title: 'Missing' }, ['W3', 'W9']), { cluster: 1, how: 'citations' });
+});
+
+test('a paper citing nothing on the map is placed by its title words above the floor', () => {
+  const missing = { doi: '10.9/zz', title: 'A model of missing data imputation' };
+  assert.deepEqual(place(FIELD_MAP, missing, ['W9']), { cluster: 0, how: 'title' });
+  assert.deepEqual(place(FIELD_MAP, missing, undefined), { cluster: 0, how: 'title' });
+  assert.deepEqual(place(FIELD_MAP, { doi: null, title: 'Disease' }), { cluster: null, how: 'none' });
+  assert.deepEqual(place(FIELD_MAP, { doi: '10.9/zz', title: null }, []), { cluster: null, how: 'none' });
 });
 
 test('tally counts placed papers per cluster', () => {
   assert.deepEqual(tally([{ cluster: 0 }, { cluster: 0 }, { cluster: 1 }, { cluster: null }]), { 0: 2, 1: 1 });
 });
 
-test('the sample reads back as the biggest clusters\' first three starters', () => {
-  const read = entries(sample(FIELD_MAP));
-  assert.equal(read.length, 6);
-  assert.deepEqual(read[0], { doi: '10.1/01', title: 'missing 1' });
+test('the sample is the biggest clusters\' first three starters, as entries', () => {
+  const entriesOf = sample(FIELD_MAP);
+  assert.equal(entriesOf.length, 6);
+  assert.deepEqual(entriesOf[0], { doi: '10.1/01', title: 'missing 1' });
+});
+
+test('only DOIs off the map that a filter can hold are looked up, once each', () => {
+  const found = [{ doi: '10.1/abc' }, { doi: '10.9/a' }, { doi: '10.9/a' }, { doi: '10.9/b,c' },
+    { doi: '10.9/d|e' }, { doi: null }];
+  assert.deepEqual(toLookUp(FIELD_MAP, found), ['10.9/a']);
+});
+
+test('a lookup URL asks OpenAlex for the references of every DOI in one filter', () => {
+  const url = new URL(lookupUrl(['10.9/a', '10.9/b']));
+  assert.equal(url.searchParams.get('filter'), 'doi:10.9/a|10.9/b');
+  assert.equal(url.searchParams.get('select'), 'doi,referenced_works');
+});
+
+test('citations come back by DOI, in batches, and a failed batch is named', async () => {
+  const dois = Array.from({ length: 120 }, (_, i) => `10.9/${i}`);
+  const asked = [];
+  const getJson = async (url) => {
+    asked.push(url);
+    if (asked.length === 2) throw new Error('HTTP 429');
+    return { results: [{ doi: 'https://doi.org/10.9/0', referenced_works: ['https://openalex.org/W1'] }] };
+  };
+  const { refs, unreached } = await citations(getJson, dois);
+  assert.equal(asked.length, 3);
+  assert.deepEqual([...refs], [['10.9/0', ['W1']]]);
+  assert.deepEqual(unreached, dois.slice(50, 100));
+  assert.equal(shortId('https://openalex.org/W7'), 'W7');
 });
 
 test('a shared first name term takes the second one too', () => {
@@ -66,7 +105,7 @@ test('a shared first name term takes the second one too', () => {
 });
 
 test('layout keeps every circle apart and inside the map', () => {
-  const clusters = [0, 1, 2, 3].map((i) => cluster(i, [`c${i}`], {}, 10 + i));
+  const clusters = [0, 1, 2, 3].map((i) => cluster(i, [`c${i}`], {}, {}, 10 + i));
   const discs = layout(clusters);
   discs.forEach((a, i) => discs.slice(i + 1).forEach((b) => {
     assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= a.reach + b.reach);
@@ -77,7 +116,7 @@ test('layout keeps every circle apart and inside the map', () => {
   });
 });
 
-test('a sample starter without a DOI reads back with its title alone', () => {
-  const noDoi = { ...FIELD_MAP.clusters[0], starters: [{ title: 'untitled DOI', doi: null }] };
-  assert.deepEqual(entries(sample({ ...FIELD_MAP, clusters: [noDoi] })), [{ doi: null, title: 'untitled DOI' }]);
+test('coincident circles part sideways', () => {
+  const discs = layout([cluster(0, ['a'], {}), cluster(1, ['b'], {})]);
+  assert.ok(Math.abs(discs[0].x - discs[1].x) >= discs[0].reach + discs[1].reach);
 });

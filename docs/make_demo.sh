@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Turns the frames docs/demo.playwright.js records into docs/demo.gif: ten
 # frames a second, 800 pixels wide, one palette built from every frame.
+# Usage: make_demo.sh [frames-dir], docs/frames by default.
 set -euo pipefail
 
-FRAMES=${1:?usage: make_demo.sh <frames-dir>}
-OUT=$(dirname "$0")/demo.gif
+DOCS=$(dirname "$0")
+FRAMES=${1:-$DOCS/frames}
+OUT=$DOCS/demo.gif
 SCALE="fps=10,scale=800:-1:flags=lanczos"
 
 ffmpeg -loglevel error -y -framerate 10 -i "$FRAMES/f%04d.png" \

@@ -7,6 +7,10 @@ THEMES = {
 }
 
 
+def ref(theme: str, n: int) -> str:
+    return f"https://openalex.org/W{theme}{n}"
+
+
 def work(n: int, theme: str, words: str) -> dict:
     inverted = {w: [i] for i, w in enumerate(words.split())}
     return {
@@ -16,7 +20,7 @@ def work(n: int, theme: str, words: str) -> dict:
         "publication_year": 2020,
         "cited_by_count": n,
         "abstract_inverted_index": inverted,
-        "referenced_works": [f"R{theme}{n % 3}", f"R{theme}{(n + 1) % 3}"],
+        "referenced_works": [ref(theme, n % 3), ref(theme, (n + 1) % 3)],
     }
 
 
