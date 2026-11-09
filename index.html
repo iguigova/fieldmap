@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fieldmap — biostatistics</title>
+<meta name="description" content="A map of biostatistics' subfields, built from 11,000 papers, with your reading list laid over it so the subfields you have not read show up.">
+<link rel="stylesheet" href="../brand.css">
+<script src="../brand.js"></script>
+<style>
+  .lead { font-size: 17px; max-width: 64ch; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 8px 0 4px; }
+  .controls label { font-weight: 700; }
+  button.plain { font: inherit; color: var(--link); background: var(--bg); border: 1px solid var(--hair);
+    border-radius: 4px; padding: 8px 12px; min-height: 44px; cursor: pointer; }
+  button.plain:hover { border-color: var(--link); }
+  input[type=file] { font: inherit; min-height: 44px; }
+  #status { min-height: 1.6em; color: var(--ink); }
+  #status.error { color: var(--link); font-weight: 700; }
+  figure { margin: 0; }
+  .scroller { overflow-x: auto; border-radius: 4px; }
+  #map { width: 100%; min-width: 720px; height: auto; display: block; background: var(--panel); }
+  svg a:focus-visible circle { stroke: var(--title); stroke-width: 4; }
+  .bubble { fill: var(--hair); stroke: var(--muted); stroke-width: 1.5; }
+  .read .bubble { fill: var(--link); stroke: var(--link); }
+  .gap .bubble { fill: var(--bg); stroke: var(--muted); stroke-dasharray: 5 4; stroke-width: 2; }
+  .label { font: 13px var(--sans); fill: var(--ink); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; }
+  .count { font: 700 13px var(--sans); fill: var(--bg); }
+  figcaption { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .key { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; }
+  .key svg { width: 18px; height: 18px; background: none; display: inline; }
+  ol.subfields { list-style: none; padding: 0; max-width: none; }
+  ol.subfields > li { border-top: 1px solid var(--hair); padding: 10px 0; }
+  .name { font-family: var(--head); font-size: 16px; color: var(--ink); }
+  .meta { color: var(--muted); font-size: 13px; }
+  .mark { font-weight: 700; }
+  details { margin-top: 4px; }
+  summary { cursor: pointer; color: var(--link); min-height: 24px; }
+  details ol { margin-top: 6px; }
+  :target { scroll-margin-top: 16px; }
+  :target .name { color: var(--title); }
+  @media (max-width: 640px) { section { grid-template-columns: minmax(0, 1fr); } section > h2 { margin-bottom: 10px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Fieldmap: biostatistics</h1>
+      <p class="tag">What the field holds, and which parts of it you haven't read yet.</p>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>What this is</h2>
+      <div>
+        <p class="lead">It's hard to spot a gap in your reading when you've never heard of the
+          subfield. This map is built from the papers themselves, not from anyone's list. Load
+          your reference library, and the subfields you've never read show up as gaps.</p>
+        <p id="scope" class="meta"></p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Your reading</h2>
+      <div>
+        <div class="controls">
+          <label for="bibtex">Load a BibTeX file</label>
+          <input id="bibtex" type="file" accept=".bib,.bibtex,.txt,text/plain">
+          <button id="sample" class="plain" type="button">Try a sample reading list</button>
+        </div>
+        <p class="meta">Zotero, Mendeley and most reference managers export BibTeX. The file stays
+          in your browser; nothing is uploaded.</p>
+        <p id="status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section>
+      <h2>The map</h2>
+      <div>
+        <figure>
+          <div class="scroller" tabindex="0" role="region" aria-label="Map of subfields, scrolls sideways on a narrow screen">
+            <svg id="map" role="group" aria-labelledby="map-caption"></svg>
+          </div>
+          <figcaption id="map-caption">
+            Each circle is a subfield, sized by its number of papers. Circles close together share
+            words and citations. Select one to see its papers below.
+            <span id="key" hidden>
+              <br>
+              <span class="key"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="var(--link)"/></svg>Filled, with a count: you have read it</span>
+              <span class="key"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="4 3"/></svg>Hollow, dashed: a gap</span>
+            </span>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section>
+      <h2>The subfields</h2>
+      <div id="lists"></div>
+    </section>
+
+    <section>
+      <h2>How it's made</h2>
+      <div>
+        <p>Every article from eight general biostatistics journals, from OpenAlex. Papers are
+          grouped by the words in their titles and abstracts and by the papers they cite. Each
+          group is named by the words that set it apart, so the names are rough. A paper in your
+          file is matched by its DOI when it's on the map. Otherwise it's placed by its title words. That's rough: for
+          papers on the map, the title alone picks the same subfield only about half the time.</p>
+        <p>The code and method are on <a href="https://github.com/iguigova/fieldmap">GitHub</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="line">Data: OpenAlex, CC0</div><div class="band"></div></footer>
+</div>
+
+<script type="module">
+import { HEIGHT, WIDTH, entries, layout, place, sample, tally } from './fieldmap.js';
+
+const SVG = 'http://www.w3.org/2000/svg';
+let fieldMap = null;
+let discs = null;
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, text) => {
+  const node = document.createElement(tag);
+  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+const svgEl = (tag, attrs = {}, text) => {
+  const node = document.createElementNS(SVG, tag);
+  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+const yours = (n) => (n ? `${n} of yours` : 'a gap: none of yours');
+
+// ---- The map -------------------------------------------------------------
+
+const bubble = ({ c, short, x, y, r }, counts) => {
+  const n = counts?.[c.id] ?? 0;
+  const words = `${c.name.slice(0, 3).join(', ')}: ${c.size} papers` + (counts ? `, ${yours(n)}` : '');
+  const link = svgEl('a', { href: `#c${c.id}`, class: counts ? (n ? 'read' : 'gap') : '', 'aria-label': words });
+  link.append(svgEl('title', {}, words), svgEl('circle', { class: 'bubble', cx: x, cy: y, r }));
+  if (n) link.append(svgEl('text', { class: 'count', x, y: y + 4, 'text-anchor': 'middle' }, n));
+  link.append(svgEl('text', { class: 'label', x, y: y + r + 15, 'text-anchor': 'middle' }, short));
+  return link;
+};
+
+const drawMap = (counts) => {
+  $('map').replaceChildren(...discs.map((d) => bubble(d, counts)));
+  $('key').hidden = !counts;
+};
+
+// ---- The lists -----------------------------------------------------------
+
+const starter = (p) => {
+  const li = el('li');
+  const title = p.doi ? el('a', { href: `https://doi.org/${p.doi}` }, p.title) : el('span', {}, p.title);
+  li.append(title, el('span', { class: 'meta' }, ` (${p.year}, cited ${p.cites} times)`));
+  return li;
+};
+
+const card = (cluster, n) => {
+  const li = el('li', { id: `c${cluster.id}` });
+  const meta = el('div', { class: 'meta' }, `${cluster.size} papers`);
+  if (n !== undefined) meta.append(el('span', { class: 'mark' }, ` · ${yours(n)}`));
+  const details = el('details');
+  const list = el('ol');
+  list.append(...cluster.starters.map(starter));
+  details.append(el('summary', {}, 'Most-cited papers to start with'), list);
+  li.append(el('div', { class: 'name' }, cluster.name.join(', ')), meta, details);
+  return li;
+};
+
+const group = (heading, clusters, counts) => {
+  const wrap = el('div');
+  const list = el('ol', { class: 'subfields' });
+  list.append(...clusters.map((c) => card(c, counts ? (counts[c.id] ?? 0) : undefined)));
+  wrap.append(el('h3', {}, heading), list);
+  return wrap;
+};
+
+const drawLists = (counts) => {
+  const bySize = [...fieldMap.clusters].sort((a, b) => b.size - a.size);
+  if (!counts) {
+    $('lists').replaceChildren(group(`All ${bySize.length} subfields, largest first`, bySize));
+    return;
+  }
+  const gaps = bySize.filter((c) => !counts[c.id]);
+  const read = bySize.filter((c) => counts[c.id]).sort((a, b) => counts[b.id] - counts[a.id]);
+  $('lists').replaceChildren(
+    group(`Gaps: ${gaps.length} subfields with none of your papers`, gaps, counts),
+    group(`Read: ${read.length} subfields with your papers`, read, counts));
+};
+
+const draw = (counts) => { drawMap(counts); drawLists(counts); };
+
+// ---- Overlay -------------------------------------------------------------
+
+const say = (text, error = false) => {
+  $('status').className = error ? 'error' : '';
+  $('status').textContent = text;
+};
+
+const overlay = (text) => {
+  const found = entries(text);
+  if (!found.length) {
+    say('No BibTeX entries with a DOI or a title were found in that file. ' +
+        'Export your library as BibTeX (.bib) and try again.', true);
+    return;
+  }
+  const placed = found.map((e) => place(fieldMap, e));
+  const counts = tally(placed);
+  const how = (way) => placed.filter((p) => p.how === way).length;
+  const gaps = fieldMap.clusters.filter((c) => !counts[c.id]).length;
+  say(`${found.length} papers read: ${how('doi')} matched by DOI, ${how('title')} placed by title words, ` +
+      `${how('none')} not placed. ${gaps} of ${fieldMap.clusters.length} subfields are gaps.`);
+  draw(counts);
+};
+
+$('bibtex').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  if (file) overlay(await file.text());
+});
+$('sample').addEventListener('click', () => overlay(sample(fieldMap)));
+
+// ---- Start ---------------------------------------------------------------
+
+const describe = (m) => {
+  const [first, last] = m.scope.years;
+  $('scope').textContent = `${m.papers.toLocaleString()} papers from ${m.scope.journals.length} journals, ` +
+    `${first}–${last}, grouped into ${m.clusters.length} subfields. Built ${m.scope.built}.`;
+};
+
+$('map').setAttribute('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
+fetch('data/map.json')
+  .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+  .then((m) => { fieldMap = m; discs = layout(m.clusters); describe(m); draw(null); })
+  .catch((e) => say(`The map could not be loaded (${e.message}). Reload the page to try again.`, true));
+</script>
+</body>
+</html>

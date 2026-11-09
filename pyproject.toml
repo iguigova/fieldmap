@@ -1,0 +1,38 @@
+[project]
+name = "fieldmap"
+version = "0.1.0"
+description = "A map of a research field's subfields, with a reading list laid over it."
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=2.0",
+  "scikit-learn>=1.5",
+  "scipy>=1.13",
+]
+
+[project.scripts]
+fieldmap = "fieldmap.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "ruff>=0.6",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 79
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=fieldmap --cov-report=term-missing --cov-fail-under=100"
