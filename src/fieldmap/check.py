@@ -1,4 +1,9 @@
-"""The success checks README.md states, run against a built map."""
+"""Checks that a built map finds the subfields it was built to find.
+
+A subfield is found when one of a cluster's name terms holds one of the
+subfield's terms as whole words. The map passes when every NAMED subfield
+is found and at least HELD_OUT_NEEDED of the HELD_OUT ones are.
+"""
 
 import re
 
