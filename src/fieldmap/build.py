@@ -135,8 +135,8 @@ def vectors(corpus: list[Paper], dimensions: int) -> np.ndarray:
     return normalize(svd.fit_transform(hstack(parts).tocsr()))
 
 
-def clusters(points: np.ndarray, count: int) -> np.ndarray:
-    return KMeans(count, random_state=0, n_init=10).fit_predict(points)
+def clusters(points: np.ndarray, count: int, seed: int = 0) -> np.ndarray:
+    return KMeans(count, random_state=seed, n_init=10).fit_predict(points)
 
 
 # ---- Profiles: each cluster's terms by class-based TF-IDF ----------------

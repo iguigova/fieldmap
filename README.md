@@ -74,7 +74,7 @@ setting.
    to 100 dimensions, and the result is scaled to unit length again.
 5. **Groups.** k-means with k = 40, best of 10 starts, seed 0. The number
    40 is set by hand in `src/fieldmap/scope.py`, not chosen by a fit
-   statistic.
+   statistic; *Stability* below says how much the groups depend on it.
 6. **Names.** Each group's words are scored by class-based TF-IDF: how
    often a term appears in the group, weighted by how rare it is across
    groups. The name is the five top terms, skipping a term whose words
@@ -86,15 +86,38 @@ setting.
    citations in OpenAlex.
 
 `uv run fieldmap check` tests the result against subfields known before
-the build. Each of the five the question named (causal inference,
-research synthesis, ML methods, spatial statistics, missing data) must
-name a group, and four of five held back (survival analysis, clinical
-trial design, longitudinal data, multiple testing, statistical genetics)
-must. The map finds all five named and four held back; multiple testing
-names no group.
+the build. Each of the five named in
+[the Academia.SE question](https://academia.stackexchange.com/questions/228054)
+that started this map (causal inference, research synthesis, ML methods,
+spatial statistics, missing data) must name a group, and four of five
+held back (survival analysis, clinical trial design, longitudinal data,
+multiple testing, statistical genetics) must. The map finds all five
+named and four held back. Multiple testing is the one no group names by
+that phrase; the nearest group is *test, tests, testing, error,
+hypothesis*.
+
+### Stability
+
+`uv run fieldmap stability` reruns k-means on the same vectors at
+k = 30, 40 and 50, each with seeds 0 to 4. A group counts as found again
+in another run when a group there shares at least half of the papers in
+either (Jaccard ≥ 0.5). On the map's data, run 2026-11-12:
+
+| k | Seeds agree (mean adjusted Rand index, seed 0 against 1–4) | Groups found again under another seed | The map's 40 groups found at this k, seed 0 | Runs passing the check |
+|---|---|---|---|---|
+| 30 | 0.61 | 72% | 65% | 5 of 5 |
+| 40 | 0.63 | 81% | 100% | 5 of 5 |
+| 50 | 0.63 | 75% | 78% | 5 of 5 |
+
+About four in five of the map's groups come back under another seed; the
+rest split or merge differently from run to run. k = 40 is no clear
+optimum: from 30 to 50 the seeds agree about equally, and every run
+passes the check.
 
 The same steps map another field by changing the journals and years in
-`src/fieldmap/scope.py`.
+`src/fieldmap/scope.py`, the subfields `src/fieldmap/check.py` tests,
+and the words every methods abstract uses, `BOILERPLATE` in
+`src/fieldmap/build.py`.
 
 The code was written with Claude, an AI assistant. Every number on the
 map and in this README comes from running it.
@@ -106,9 +129,10 @@ The map is built by a Python pipeline run with
 data:
 
 ```sh
-uv run fieldmap fetch   # download the papers into data/raw/
-uv run fieldmap build   # cluster them into data/map.json
-uv run fieldmap check   # check the named subfields in check.py are found
+uv run fieldmap fetch      # download the papers into data/raw/
+uv run fieldmap build      # cluster them into data/map.json
+uv run fieldmap check      # check the named subfields in check.py are found
+uv run fieldmap stability  # rerun the clustering at other k and seeds
 ```
 
 `index.html` draws the page and `fieldmap.js` holds its logic: reading
