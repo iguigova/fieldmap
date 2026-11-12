@@ -89,3 +89,11 @@ def test_the_map_ships_how_the_page_reads_titles(works):
 def test_title_terms_match_the_fixture_the_page_is_tested_on():
     for case in TITLE_TERMS:
         assert build.title_terms(case["title"]) == case["terms"]
+
+
+def test_each_theme_recurs_in_every_rerun(works):
+    field_map = built(works)
+    assert field_map["reruns"] == len(build.SEEDS) - 1
+    assert {c["recurs"] for c in field_map["clusters"]} == {
+        field_map["reruns"]
+    }

@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  HEIGHT, WIDTH, citations, cleanDoi, entries, layout, lookupUrl, place, readMap, sample, shortId, shortName,
-  tally, titleTerms, toLookUp,
+  HEIGHT, WIDTH, citations, cleanDoi, entries, layout, lookupUrl, place, readMap, recurrence, sample, shortId,
+  shortName, soft, tally, titleTerms, toLookUp,
 } from '../fieldmap.js';
 
 const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
@@ -119,4 +119,14 @@ test('layout keeps every circle apart and inside the map', () => {
 test('coincident circles part sideways', () => {
   const discs = layout([cluster(0, ['a'], {}), cluster(1, ['b'], {})]);
   assert.ok(Math.abs(discs[0].x - discs[1].x) >= discs[0].reach + discs[1].reach);
+});
+
+test('a subfield found again in at most half the reruns is soft', () => {
+  const fieldMap = { reruns: 4 };
+  assert.deepEqual([1, 2, 3].map((recurs) => soft(fieldMap, { recurs })), [true, true, false]);
+  assert.equal(recurrence(fieldMap, { recurs: 3 }), 'found again in 3 of 4 reruns');
+});
+
+test('every shipped subfield says how many reruns found it again', () => {
+  assert.ok(SHIPPED.clusters.every((c) => c.recurs >= 0 && c.recurs <= SHIPPED.reruns));
 });

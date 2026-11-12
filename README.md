@@ -9,7 +9,8 @@ covers and which it misses.
 subfield. Clicking "Try a sample reading list" fills eight circles with a
 count of the reader's papers and turns the other 32 into hollow dashed
 circles. Below the map, the 32 gaps are listed; opening one shows its five
-most-cited papers. Last, the theme switch turns the page dark.](docs/demo.gif)
+most-cited papers. Eight circle names are in italics, the soft subfields.
+Last, the theme switch turns the page dark.](docs/demo.gif)
 
 ## Use it
 
@@ -23,6 +24,9 @@ most-cited papers. Last, the theme switch turns the page dark.](docs/demo.gif)
      number is how many of its papers sit there.
    - **Hollow, dashed circle:** a gap, a subfield the library has no
      papers in.
+   - **Italic name:** a soft subfield, one the clustering found again in
+     at most two of four reruns. Its edges depend on chance more than on
+     the papers. Each subfield's card says how many reruns found it.
 4. Open a gap in the *Gaps* list below the map. *Most-cited papers to start
    with* lists the five papers from that subfield cited most often.
 
@@ -84,6 +88,11 @@ setting.
    dimensions.
 8. **Papers to start with.** A group's five papers with the most
    citations in OpenAlex.
+9. **Reruns.** k-means runs four more times on the same vectors, with
+   seeds 1 to 4. A group is found again in a rerun when a group there
+   shares at least half of the papers in either (Jaccard ≥ 0.5). Each
+   group ships the number of reruns that found it, and the page marks one
+   found in at most two as soft.
 
 `uv run fieldmap check` tests the result against subfields known before
 the build. Each of the five named in
@@ -99,9 +108,8 @@ hypothesis*.
 ### Stability
 
 `uv run fieldmap stability` reruns k-means on the same vectors at
-k = 30, 40 and 50, each with seeds 0 to 4. A group counts as found again
-in another run when a group there shares at least half of the papers in
-either (Jaccard ≥ 0.5). On the map's data, run 2026-11-12:
+k = 30, 40 and 50, each with seeds 0 to 4, and compares the runs as step
+9 does. On the map's data, run 2026-11-12:
 
 | k | Seeds agree (mean adjusted Rand index, seed 0 against 1–4) | Groups found again under another seed | The map's 40 groups found at this k, seed 0 | Runs passing the check |
 |---|---|---|---|---|
@@ -110,7 +118,10 @@ either (Jaccard ≥ 0.5). On the map's data, run 2026-11-12:
 | 50 | 0.63 | 75% | 78% | 5 of 5 |
 
 About four in five of the map's groups come back under another seed; the
-rest split or merge differently from run to run. k = 40 is no clear
+rest split or merge differently from run to run. Per group, 19 of the 40
+are found again in all four reruns, 13 in three, 6 in two and 2 in one.
+The two found in one are *brain, network, networks* and the largest,
+*regression, case, sampling*, with 1,007 papers. k = 40 is no clear
 optimum: from 30 to 50 the seeds agree about equally, and every run
 passes the check.
 

@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 
 from fieldmap import check, openalex, scope, stability
-from fieldmap.build import DIMENSIONS, field_map
+from fieldmap.build import DIMENSIONS, SEEDS, field_map
 
 RAW = Path("data/raw/works.jsonl")
 MAP = Path("data/map.json")
@@ -57,7 +57,7 @@ def run_stability(args) -> tuple[str, int]:
     rows = stability.stability(
         read_works(args.raw),
         stability.KS,
-        stability.SEEDS,
+        SEEDS,
         DIMENSIONS,
         scope.CLUSTERS,
     )

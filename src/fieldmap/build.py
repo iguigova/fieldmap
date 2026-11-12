@@ -15,6 +15,7 @@ from sklearn.manifold import MDS
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.preprocessing import normalize
 
+from fieldmap.compare import groups, recurs
 from fieldmap.openalex import abstract
 
 # Words every methods abstract uses, which would otherwise name every cluster.
@@ -69,6 +70,8 @@ REF_SETTINGS = {"analyzer": list, "min_df": 2}
 # A journal's front matter that OpenAlex types as an article.
 FRONT_MATTER = "Cover Picture:"
 DIMENSIONS = 100
+# The map is clustered with the first seed; the rest rerun it to test it.
+SEEDS = (0, 1, 2, 3, 4)
 NAME_TERMS = 5
 STARTERS = 5
 SHIPPED_TERMS = 150
@@ -222,11 +225,12 @@ def starters(members: list[Paper]) -> list[dict]:
     return [starter(p) for p in by_cites[:STARTERS]]
 
 
-def cluster_entry(c, members, position, terms, refs) -> dict:
+def cluster_entry(c, members, position, terms, refs, recurred) -> dict:
     return {
         "id": c,
         "name": name(list(terms)),
         "size": len(members),
+        "recurs": recurred,
         "x": round(float(position[0]), 4),
         "y": round(float(position[1]), 4),
         "starters": starters(members),
@@ -238,7 +242,9 @@ def cluster_entry(c, members, position, terms, refs) -> dict:
 def field_map(works: list[dict], count: int, dimensions: int) -> dict:
     corpus = papers(works)
     points = vectors(corpus, dimensions)
-    labels = clusters(points, count)
+    labels = clusters(points, count, SEEDS[0])
+    reruns = [groups(clusters(points, count, s)) for s in SEEDS[1:]]
+    recurred = [recurs(g, reruns) for g in groups(labels)]
     texts = [p.text for p in corpus]
     cited = [p.refs for p in corpus]
     terms = profiles(TERM_SETTINGS, texts, labels, count, SHIPPED_TERMS)
@@ -252,8 +258,11 @@ def field_map(works: list[dict], count: int, dimensions: int) -> dict:
         "papers": len(corpus),
         "stop_words": STOP_WORDS,
         "title_floor": title_floor(corpus, terms),
+        "reruns": len(reruns),
         "clusters": [
-            cluster_entry(c, members[c], positions[c], terms[c], refs[c])
+            cluster_entry(
+                c, members[c], positions[c], terms[c], refs[c], recurred[c]
+            )
             for c in range(count)
         ],
         "dois": {

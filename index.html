@@ -24,6 +24,7 @@
   .bubble { fill: var(--hair); stroke: var(--muted); stroke-width: 1.5; }
   .read .bubble { fill: var(--link); stroke: var(--link); }
   .gap .bubble { fill: var(--bg); stroke: var(--muted); stroke-dasharray: 5 4; stroke-width: 2; }
+  .soft .label { font-style: italic; }
   .label { font: 13px var(--sans); fill: var(--ink); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; }
   .count { font: 700 13px var(--sans); fill: var(--bg); }
   figcaption { color: var(--muted); font-size: 13px; margin-top: 6px; }
@@ -87,8 +88,9 @@
           <figcaption id="map-caption">
             Each circle is a subfield, sized by its number of papers. Circles close together share
             words and citations. Select one to see its papers below.
+            <br>
+            <span class="key"><i>Italic name:</i> soft, found again in at most half the reruns</span>
             <span id="key" hidden>
-              <br>
               <span class="key"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="var(--link)"/></svg>Filled, with a count: you have read it</span>
               <span class="key"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="4 3"/></svg>Hollow, dashed: a gap</span>
             </span>
@@ -113,6 +115,10 @@
           rough. Tested on a fifth of the map's own papers, held back while the rest built the
           subfields, citations picked the paper's own subfield two times in three, and title words
           about half the time.</p>
+        <p>Each subfield says how many of four reruns found it again. A rerun clusters the same
+          papers from a different random start, and finds a subfield again when one of its groups
+          shares at least half of the papers in either. A subfield found again in at most half the
+          reruns is soft: its edges depend on the start more than on the papers.</p>
         <p>The groups come from k-means on each paper's words and citations, set to 40 groups.
           Every step and setting is in the <a href="https://github.com/iguigova/fieldmap#method">method</a>.
           The code was written with Claude, an AI assistant.</p>
@@ -125,7 +131,7 @@
 
 <script type="module">
 import {
-  HEIGHT, WIDTH, citations, entries, layout, place, readMap, sample, tally, toLookUp,
+  HEIGHT, WIDTH, citations, entries, layout, place, readMap, recurrence, sample, soft, tally, toLookUp,
 } from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -155,13 +161,15 @@ const getJson = async (url) => {
   return response.json();
 };
 const yours = (n) => (n ? `${n} of yours` : 'a gap: none of yours');
+const stability = (c) => recurrence(fieldMap, c) + (soft(fieldMap, c) ? ', soft' : '');
 
 // ---- The map -------------------------------------------------------------
 
 const bubble = ({ c, short, x, y, r }, counts) => {
   const n = counts?.[c.id] ?? 0;
-  const words = `${c.name.slice(0, 3).join(', ')}: ${c.size} papers` + (counts ? `, ${yours(n)}` : '');
-  const link = svgEl('a', { href: `#c${c.id}`, class: counts ? (n ? 'read' : 'gap') : '', 'aria-label': words });
+  const words = `${c.name.slice(0, 3).join(', ')}: ${c.size} papers, ${stability(c)}` + (counts ? `, ${yours(n)}` : '');
+  const classes = [counts ? (n ? 'read' : 'gap') : '', soft(fieldMap, c) ? 'soft' : ''].join(' ').trim();
+  const link = svgEl('a', { href: `#c${c.id}`, class: classes, 'aria-label': words });
   link.append(svgEl('title', {}, words), svgEl('circle', { class: 'bubble', cx: x, cy: y, r }));
   if (n) link.append(svgEl('text', { class: 'count', x, y: y + 4, 'text-anchor': 'middle' }, n));
   link.append(svgEl('text', { class: 'label', x, y: y + r + 15, 'text-anchor': 'middle' }, short));
@@ -184,7 +192,7 @@ const starter = (p) => {
 
 const card = (cluster, n) => {
   const li = el('li', { id: `c${cluster.id}` });
-  const meta = el('div', { class: 'meta' }, `${cluster.size} papers`);
+  const meta = el('div', { class: 'meta' }, `${cluster.size} papers · ${stability(cluster)}`);
   if (n !== undefined) meta.append(el('span', { class: 'mark' }, ` · ${yours(n)}`));
   const details = el('details');
   const list = el('ol');

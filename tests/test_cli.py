@@ -43,7 +43,7 @@ def test_check_exits_with_the_verdict(tmp_path, field_map, status):
 
 def test_stability_reports_each_k(raw, monkeypatch, capsys):
     monkeypatch.setattr(cli.stability, "KS", (2, 3))
-    monkeypatch.setattr(cli.stability, "SEEDS", (0, 1))
+    monkeypatch.setattr(cli, "SEEDS", (0, 1))
     monkeypatch.setattr(cli, "DIMENSIONS", 2)
     monkeypatch.setattr(scope, "CLUSTERS", 3)
     assert cli.main(["stability", "--raw", str(raw)]) == 0

@@ -107,6 +107,13 @@ export const tally = (placed) => placed.reduce((counts, p) => {
   return counts;
 }, {});
 
+// ---- Stability: how often a subfield came back when the clustering reran --
+
+export const recurrence = (fieldMap, c) => `found again in ${c.recurs} of ${fieldMap.reruns} reruns`;
+
+// A subfield found again in at most half the reruns is soft.
+export const soft = (fieldMap, c) => c.recurs * 2 <= fieldMap.reruns;
+
 // ---- Layout: circles and their labels, kept apart ------------------------
 
 // A first name term two subfields share takes the second term too.
