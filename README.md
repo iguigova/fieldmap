@@ -53,6 +53,52 @@ what those papers cite.
   own subfield two times in three and title words about half the time.
   The line under *Load a BibTeX file* gives the counts.
 
+## Method
+
+`src/fieldmap/build.py` holds every step, and its constants hold every
+setting.
+
+1. **Papers.** Every work OpenAlex types as an article in the eight
+   journals from 2015 to 2025, less those with no title and the journals'
+   cover pictures. A paper's text is its title and abstract.
+2. **Words.** Each paper becomes a TF-IDF vector of single words and
+   two-word phrases, with sublinear term frequency. English stop words
+   are dropped, along with words every methods abstract uses, such as
+   *method*, *model* and *propose*. A term is kept when it is in at least
+   5 papers and at most 40% of them.
+3. **Citations.** Each paper becomes a second TF-IDF vector, whose terms
+   are the works it cites. A cited work is kept when at least 2 papers
+   cite it.
+4. **One space.** Both vectors are scaled to unit length and laid side by
+   side, so words and citations weigh the same. Truncated SVD reduces them
+   to 100 dimensions, and the result is scaled to unit length again.
+5. **Groups.** k-means with k = 40, best of 10 starts, seed 0. The number
+   40 is set by hand in `src/fieldmap/scope.py`, not chosen by a fit
+   statistic.
+6. **Names.** Each group's words are scored by class-based TF-IDF: how
+   often a term appears in the group, weighted by how rare it is across
+   groups. The name is the five top terms, skipping a term whose words
+   are inside a term already picked.
+7. **Layout.** The distance between two groups is the cosine distance
+   between their centres; metric MDS lays those distances out in two
+   dimensions.
+8. **Papers to start with.** A group's five papers with the most
+   citations in OpenAlex.
+
+`uv run fieldmap check` tests the result against subfields known before
+the build. Each of the five the question named (causal inference,
+research synthesis, ML methods, spatial statistics, missing data) must
+name a group, and four of five held back (survival analysis, clinical
+trial design, longitudinal data, multiple testing, statistical genetics)
+must. The map finds all five named and four held back; multiple testing
+names no group.
+
+The same steps map another field by changing the journals and years in
+`src/fieldmap/scope.py`.
+
+The code was written with Claude, an AI assistant. Every number on the
+map and in this README comes from running it.
+
 ## Build it
 
 The map is built by a Python pipeline run with
