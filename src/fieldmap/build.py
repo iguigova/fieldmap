@@ -1,5 +1,7 @@
-"""Turn the scope's works into the map the page reads: clusters, names."""
+"""Turn the scope's works into the map the page reads: clusters, names,
+who works in each and which others each cites."""
 
+from collections import Counter
 from dataclasses import dataclass
 
 import numpy as np
@@ -78,10 +80,16 @@ SHIPPED_TERMS = 150
 SHIPPED_REFS = 300
 # A title scoring below this share of the map's own titles is left unplaced.
 FLOOR_PERCENTILE = 5
+# Who is active in a subfield: the map's last five years.
+ACTIVE_YEARS = 5
+WHO_KINDS = ("authors", "institutions", "funders")
+TOP_WHO = 5
+NEIGHBOURS = 3
 
 
 @dataclass(frozen=True)
 class Paper:
+    id: str
     doi: str | None
     title: str
     year: int
@@ -100,6 +108,7 @@ def short_id(url: str) -> str:
 
 def paper(work: dict) -> Paper:
     return Paper(
+        id=short_id(work["id"]),
         doi=short_doi(work.get("doi")),
         title=work["title"],
         year=work["publication_year"],
@@ -213,6 +222,70 @@ def layout(points: np.ndarray, labels: np.ndarray, count: int) -> np.ndarray:
     return (placed - placed.min(axis=0)) / span
 
 
+# ---- Who: the authors, institutions and funders of recent papers --------
+
+
+def named(entities) -> set[tuple[str, str]]:
+    return {(e["id"], e["display_name"]) for e in entities if e.get("id")}
+
+
+def credits(work: dict) -> dict[str, set]:
+    authorships = work["authorships"]
+    places = (i for a in authorships for i in a["institutions"])
+    return {
+        "authors": named(a["author"] for a in authorships),
+        "institutions": named(places),
+        "funders": named(work["funders"]),
+    }
+
+
+def top(named_sets) -> list[dict]:
+    counts = Counter(e for named in named_sets for e in named)
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0][1]))
+    return [{"name": n, "papers": k} for (_, n), k in ranked[:TOP_WHO]]
+
+
+def who(members: list[Paper], by_id: dict[str, dict], since: int) -> dict:
+    recent = [credits(by_id[p.id]) for p in members if p.year >= since]
+    return {kind: top(c[kind] for c in recent) for kind in WHO_KINDS}
+
+
+# ---- Neighbours: the subfields each one cites and is cited by most -------
+
+
+def citation_counts(corpus, labels, count: int) -> np.ndarray:
+    label_of = {p.id: k for p, k in zip(corpus, labels, strict=True)}
+    pairs = [
+        (k, label_of[r])
+        for p, k in zip(corpus, labels, strict=True)
+        for r in p.refs
+        if r in label_of
+    ]
+    counts = np.zeros((count, count))
+    np.add.at(counts, ([a for a, _ in pairs], [b for _, b in pairs]), 1)
+    return counts
+
+
+# Citations both ways, scaled so two large subfields aren't near only for size.
+def strength(counts: np.ndarray, sizes: np.ndarray) -> np.ndarray:
+    both = counts + counts.T
+    np.fill_diagonal(both, 0)
+    return both / np.sqrt(np.outer(sizes, sizes))
+
+
+def neighbours(counts: np.ndarray, sizes: np.ndarray) -> list[list[dict]]:
+    scaled = strength(counts, sizes)
+    both = counts + counts.T
+    return [
+        [{"id": int(j), "cites": int(both[i, j])} for j in nearest(row)]
+        for i, row in enumerate(scaled)
+    ]
+
+
+def nearest(row: np.ndarray) -> list:
+    return [j for j in np.argsort(-row, kind="stable")[:NEIGHBOURS] if row[j]]
+
+
 # ---- The map -------------------------------------------------------------
 
 
@@ -239,7 +312,9 @@ def cluster_entry(c, members, position, terms, refs, recurred) -> dict:
     }
 
 
-def field_map(works: list[dict], count: int, dimensions: int) -> dict:
+def field_map(
+    works: list[dict], who_works: list[dict], count: int, dimensions: int
+) -> dict:
     corpus = papers(works)
     points = vectors(corpus, dimensions)
     labels = clusters(points, count, SEEDS[0])
@@ -254,15 +329,21 @@ def field_map(works: list[dict], count: int, dimensions: int) -> dict:
         [p for p, k in zip(corpus, labels, strict=True) if k == c]
         for c in range(count)
     ]
+    by_id = {short_id(w["id"]): w for w in who_works}
+    since = max(p.year for p in corpus) - ACTIVE_YEARS + 1
+    sizes = np.array([len(m) for m in members])
+    near = neighbours(citation_counts(corpus, labels, count), sizes)
     return {
         "papers": len(corpus),
         "stop_words": STOP_WORDS,
         "title_floor": title_floor(corpus, terms),
         "reruns": len(reruns),
+        "active_since": since,
         "clusters": [
             cluster_entry(
                 c, members[c], positions[c], terms[c], refs[c], recurred[c]
             )
+            | {"who": who(members[c], by_id, since), "near": near[c]}
             for c in range(count)
         ],
         "dois": {

@@ -29,3 +29,33 @@ def works() -> list[dict]:
     themed = [work(n, t, w) for t, w in THEMES.items() for n in range(12)]
     cover = dict(themed[0], title="Cover Picture: Biometrical Journal 1'20")
     return [*themed, cover, dict(themed[1], title=None)]
+
+
+def credit(work: dict) -> dict:
+    theme = (
+        work["id"].removeprefix("https://openalex.org/W").rstrip("0123456789")
+    )
+    n = int(work["id"][len(theme) + len("https://openalex.org/W") :])
+    team = {"id": f"I{theme}", "display_name": f"{theme} university"}
+    return {
+        "id": work["id"],
+        "authorships": [
+            {
+                "author": {
+                    "id": f"A{theme}",
+                    "display_name": f"{theme} author",
+                },
+                "institutions": [team],
+            },
+            {
+                "author": {"id": None, "display_name": "unmatched"},
+                "institutions": [],
+            },
+        ],
+        "funders": [{"id": "Fnih", "display_name": "NIH"}] if n % 2 else [],
+    }
+
+
+@pytest.fixture
+def who_works(works) -> list[dict]:
+    return [credit(w) for w in works]

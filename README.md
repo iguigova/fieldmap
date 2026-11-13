@@ -1,7 +1,8 @@
 # Fieldmap
 
 A map of biostatistics that shows which of its subfields a reading list
-covers and which it misses.
+covers and which it misses, who works in each and which subfields each
+one is closest to.
 
 **[Open the map →](https://iguigova.github.io/fieldmap/)**
 
@@ -27,8 +28,13 @@ Last, the theme switch turns the page dark.](docs/demo.gif)
    - **Italic name:** a soft subfield, one the clustering found again in
      at most two of four reruns. Its edges depend on chance more than on
      the papers. Each subfield's card says how many reruns found it.
+   - **Line:** joins a subfield to one of the three it cites and is cited
+     by most. Point at or tab to a circle to light up its three.
 4. Open a gap in the *Gaps* list below the map. *Most-cited papers to start
-   with* lists the five papers from that subfield cited most often.
+   with* lists the five papers from that subfield cited most often. *Who
+   publishes here* lists its five most frequent authors and institutions
+   from 2021 to 2025, and *Who funds it* its five most frequent funders.
+   *Nearest by citation* links its three closest subfields.
 
 *Try a sample reading list* shows the same thing without a library.
 
@@ -56,6 +62,15 @@ what those papers cite.
   back while the rest built the subfields, citations picked the paper's
   own subfield two times in three and title words about half the time.
   The line under *Load a BibTeX file* gives the counts.
+- **Who:** the authors, institutions and funders OpenAlex records on a
+  subfield's papers from 2021 to 2025. Of those 5,409 papers, 99% name an
+  institution and 76% a funder. OpenAlex sometimes credits a paper to the
+  wrong person of the same name: of 58 recent papers it credits to Yale's
+  Fan Li, one is by Duke's Fan Li, and one by both credits both to
+  Yale's. It names a funder and its parts
+  separately: of 581 recent papers that name the National Cancer
+  Institute, 397 also name the National Institutes of Health, and only
+  those count for both.
 
 ## Method
 
@@ -93,6 +108,14 @@ setting.
    shares at least half of the papers in either (Jaccard ≥ 0.5). Each
    group ships the number of reruns that found it, and the page marks one
    found in at most two as soft.
+
+10. **Who.** For each group, the five authors, institutions and funders
+    named on the most of its papers from the map's last five years, by
+    OpenAlex id. A paper counts once for each.
+11. **Nearest.** Two groups' strength is the citations between them, both
+    ways, divided by the square root of the product of their sizes, so two
+    large groups are not near just for being large. Each group ships the
+    three strongest, with their citation counts.
 
 `uv run fieldmap check` tests the result against subfields known before
 the build. Each of the five named in
@@ -141,6 +164,7 @@ data:
 
 ```sh
 uv run fieldmap fetch      # download the papers into data/raw/
+uv run fieldmap who        # download their authors and funders, by id
 uv run fieldmap build      # cluster them into data/map.json
 uv run fieldmap check      # check the named subfields in check.py are found
 uv run fieldmap stability  # rerun the clustering at other k and seeds

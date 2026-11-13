@@ -114,6 +114,14 @@ export const recurrence = (fieldMap, c) => `found again in ${c.recurs} of ${fiel
 // A subfield found again in at most half the reruns is soft.
 export const soft = (fieldMap, c) => c.recurs * 2 <= fieldMap.reruns;
 
+// ---- Neighbours: the subfields each one cites and is cited by most ------
+
+// Each pair once, whether one or both of the two name the other.
+export const links = (clusters) => [...new Map(clusters.flatMap((c) => c.near.map((n) => {
+  const [a, b] = [c.id, n.id].sort((x, y) => x - y);
+  return [`${a} ${b}`, { a, b }];
+}))).values()];
+
 // ---- Layout: circles and their labels, kept apart ------------------------
 
 // A first name term two subfields share takes the second term too.

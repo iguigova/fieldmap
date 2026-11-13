@@ -50,3 +50,16 @@ def test_scope_asks_one_query_per_year():
     filters = scope.works_filters()
     assert len(filters) == scope.YEARS[1] - scope.YEARS[0] + 1
     assert "publication_year:2015," in filters[0]
+
+
+def test_who_asks_for_ids_in_batches_of_the_filter_limit():
+    seen = []
+
+    def fake(url):
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        seen.append(query["filter"][0].removeprefix("openalex:").split("|"))
+        return {"results": [query["select"][0]]}
+
+    ids = [f"W{n}" for n in range(openalex.ID_BATCH + 1)]
+    assert list(openalex.who(ids, fake)) == [[openalex.WHO_FIELDS]] * 2
+    assert [len(batch) for batch in seen] == [openalex.ID_BATCH, 1]

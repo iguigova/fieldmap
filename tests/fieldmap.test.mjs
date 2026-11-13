@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  HEIGHT, WIDTH, citations, cleanDoi, entries, layout, lookupUrl, place, readMap, recurrence, sample, shortId,
+  HEIGHT, WIDTH, citations, cleanDoi, entries, layout, links, lookupUrl, place, readMap, recurrence, sample, shortId,
   shortName, soft, tally, titleTerms, toLookUp,
 } from '../fieldmap.js';
 
@@ -129,4 +129,17 @@ test('a subfield found again in at most half the reruns is soft', () => {
 
 test('every shipped subfield says how many reruns found it again', () => {
   assert.ok(SHIPPED.clusters.every((c) => c.recurs >= 0 && c.recurs <= SHIPPED.reruns));
+});
+
+test('neighbours become one link per pair', () => {
+  const near = (id, ids) => ({ id, near: ids.map((n) => ({ id: n, cites: 1 })) });
+  assert.deepEqual(links([near(0, [1, 2]), near(1, [0]), near(2, [])]), [{ a: 0, b: 1 }, { a: 0, b: 2 }]);
+});
+
+test('every shipped subfield names its neighbours and who works in it', () => {
+  const ids = new Set(SHIPPED.clusters.map((c) => c.id));
+  SHIPPED.clusters.forEach((c) => {
+    assert.ok(c.near.length > 0 && c.near.every((n) => ids.has(n.id) && n.id !== c.id));
+    assert.deepEqual(Object.keys(c.who), ['authors', 'institutions', 'funders']);
+  });
 });

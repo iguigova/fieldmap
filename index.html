@@ -21,6 +21,8 @@
   .scroller { overflow-x: auto; border-radius: 4px; }
   #map { width: 100%; min-width: 720px; height: auto; display: block; background: var(--panel); }
   svg a:focus-visible circle { stroke: var(--title); stroke-width: 4; }
+  .link { stroke: var(--muted); stroke-width: 1; opacity: 0.3; }
+  .link.lit { stroke: var(--link); stroke-width: 2.5; opacity: 1; }
   .bubble { fill: var(--hair); stroke: var(--muted); stroke-width: 1.5; }
   .read .bubble { fill: var(--link); stroke: var(--link); }
   .gap .bubble { fill: var(--bg); stroke: var(--muted); stroke-dasharray: 5 4; stroke-width: 2; }
@@ -38,6 +40,7 @@
   details { margin-top: 4px; }
   summary { cursor: pointer; color: var(--link); min-height: 24px; }
   details ol { margin-top: 6px; }
+  details h4 { margin: 8px 0 0; font-size: 14px; }
   :target { scroll-margin-top: 16px; }
   :target .name { color: var(--title); }
   @media (max-width: 640px) { section { grid-template-columns: minmax(0, 1fr); } section > h2 { margin-bottom: 10px; } }
@@ -87,7 +90,8 @@
           </div>
           <figcaption id="map-caption">
             Each circle is a subfield, sized by its number of papers. Circles close together share
-            words and citations. Select one to see its papers below.
+            words and citations, and a line joins each subfield to the three it cites and is cited by
+            most. Point at or tab to a circle to light up its three; select it to see it below.
             <br>
             <span class="key"><i>Italic name:</i> soft, found again in at most half the reruns</span>
             <span id="key" hidden>
@@ -119,6 +123,15 @@
           papers from a different random start, and finds a subfield again when one of its groups
           shares at least half of the papers in either. A subfield found again in at most half the
           reruns is soft: its edges depend on the start more than on the papers.</p>
+        <p>Each subfield names its five most frequent authors, institutions and funders on its
+          papers from the map's last five years, as OpenAlex records them. OpenAlex sometimes
+          credits a paper to the wrong person of the same name: of 58 recent papers it credits to
+          Yale's Fan Li, one is by Duke's Fan Li, and one by both credits both to Yale's. It names a
+          funder and its parts separately: of 581 recent papers that name the National Cancer
+          Institute, 397 also name the National Institutes of Health, and only those count for
+          both.</p>
+        <p>A subfield's nearest are the three whose papers it cites and is cited by most, scaled by
+          the two subfields' sizes so that two large ones are not near just for being large.</p>
         <p>The groups come from k-means on each paper's words and citations, set to 40 groups.
           Every step and setting is in the <a href="https://github.com/iguigova/fieldmap#method">method</a>.
           The code was written with Claude, an AI assistant.</p>
@@ -131,7 +144,7 @@
 
 <script type="module">
 import {
-  HEIGHT, WIDTH, citations, entries, layout, place, readMap, recurrence, sample, soft, tally, toLookUp,
+  HEIGHT, WIDTH, citations, entries, layout, links, place, readMap, recurrence, sample, soft, tally, toLookUp,
 } from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -176,8 +189,27 @@ const bubble = ({ c, short, x, y, r }, counts) => {
   return link;
 };
 
+const pair = (a, b) => [a, b].sort((x, y) => x - y).join(' ');
+
+const line = (byId, { a, b }) => svgEl('line', {
+  class: 'link', 'data-pair': pair(a, b),
+  x1: byId.get(a).x, y1: byId.get(a).y, x2: byId.get(b).x, y2: byId.get(b).y,
+});
+
+const light = (c, on) => c.near.forEach((n) =>
+  document.querySelector(`.link[data-pair="${pair(c.id, n.id)}"]`).classList.toggle('lit', on));
+
+const lighting = (link, c) => {
+  ['mouseenter', 'focus'].forEach((e) => link.addEventListener(e, () => light(c, true)));
+  ['mouseleave', 'blur'].forEach((e) => link.addEventListener(e, () => light(c, false)));
+  return link;
+};
+
 const drawMap = (counts) => {
-  $('map').replaceChildren(...discs.map((d) => bubble(d, counts)));
+  const byId = new Map(discs.map((d) => [d.c.id, d]));
+  const lines = svgEl('g', { 'aria-hidden': 'true' });
+  lines.append(...links(fieldMap.clusters).map((pair) => line(byId, pair)));
+  $('map').replaceChildren(lines, ...discs.map((d) => lighting(bubble(d, counts), d.c)));
   $('key').hidden = !counts;
 };
 
@@ -190,15 +222,42 @@ const starter = (p) => {
   return li;
 };
 
+const fold = (summary, ...content) => {
+  const details = el('details');
+  details.append(el('summary', {}, summary), ...content);
+  return details;
+};
+
+const listOf = (items, item) => {
+  const list = el('ol');
+  list.append(...items.map(item));
+  return list;
+};
+
+const credited = (e) => el('li', {}, `${e.name} (${e.papers} ${e.papers === 1 ? 'paper' : 'papers'})`);
+
+const whoList = (heading, entries) => [el('h4', {}, heading), listOf(entries, credited)];
+
+const shortTitle = (id) => fieldMap.clusters.find((c) => c.id === id).name.slice(0, 3).join(', ');
+
+const nearest = (cluster) => {
+  const line = el('div', { class: 'meta' }, 'Nearest by citation: ');
+  cluster.near.forEach((n, i) => line.append(i ? '; ' : '', el('a', { href: `#c${n.id}` }, shortTitle(n.id)),
+    ` (${n.cites} citations between them)`));
+  return line;
+};
+
 const card = (cluster, n) => {
   const li = el('li', { id: `c${cluster.id}` });
   const meta = el('div', { class: 'meta' }, `${cluster.size} papers · ${stability(cluster)}`);
   if (n !== undefined) meta.append(el('span', { class: 'mark' }, ` · ${yours(n)}`));
-  const details = el('details');
-  const list = el('ol');
-  list.append(...cluster.starters.map(starter));
-  details.append(el('summary', {}, 'Most-cited papers to start with'), list);
-  li.append(el('div', { class: 'name' }, cluster.name.join(', ')), meta, details);
+  const years = `${fieldMap.active_since}–${fieldMap.scope.years[1]}`;
+  li.append(
+    el('div', { class: 'name' }, cluster.name.join(', ')), meta, nearest(cluster),
+    fold('Most-cited papers to start with', listOf(cluster.starters, starter)),
+    fold(`Who publishes here, ${years}`,
+      ...whoList('Authors', cluster.who.authors), ...whoList('Institutions', cluster.who.institutions)),
+    fold(`Who funds it, ${years}`, listOf(cluster.who.funders, credited)));
   return li;
 };
 

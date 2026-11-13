@@ -6,12 +6,20 @@ from fieldmap import cli, scope
 from tests.test_check import PASSING
 
 
-@pytest.fixture
-def raw(tmp_path, works):
-    path = tmp_path / "raw" / "works.jsonl"
-    path.parent.mkdir()
+def write(path, works):
     path.write_text("".join(json.dumps(w) + "\n" for w in works))
     return path
+
+
+@pytest.fixture
+def raw(tmp_path, works):
+    (tmp_path / "raw").mkdir()
+    return write(tmp_path / "raw" / "works.jsonl", works)
+
+
+@pytest.fixture
+def who(raw, who_works):
+    return write(raw.parent / "who.jsonl", who_works)
 
 
 def test_fetch_writes_every_page_of_every_year(tmp_path, monkeypatch):
@@ -22,11 +30,24 @@ def test_fetch_writes_every_page_of_every_year(tmp_path, monkeypatch):
     assert len(cli.read_works(raw)) == 4
 
 
-def test_build_writes_the_map_with_its_scope(raw, tmp_path, monkeypatch):
+def echo(ids):
+    return [[{"id": i} for i in ids]]
+
+
+def test_who_fetches_the_credits_of_every_work(raw, monkeypatch, capsys):
+    monkeypatch.setattr(cli.openalex, "who", echo)
+    out = raw.parent / "who.jsonl"
+    assert cli.main(["who", "--raw", str(raw), "--who", str(out)]) == 0
+    assert len(cli.read_works(out)) == 38
+    assert capsys.readouterr().out.startswith("38 of 38")
+
+
+def test_build_writes_the_map_with_its_scope(raw, who, tmp_path, monkeypatch):
     monkeypatch.setattr(scope, "CLUSTERS", 3)
     monkeypatch.setattr(cli, "DIMENSIONS", 2)
     out = tmp_path / "map.json"
-    assert cli.main(["build", "--raw", str(raw), "--map", str(out)]) == 0
+    args = ["build", "--raw", str(raw), "--who", str(who), "--map", str(out)]
+    assert cli.main(args) == 0
     built = json.loads(out.read_text())
     assert built["papers"] == 36
     assert built["scope"]["years"] == list(scope.YEARS)
