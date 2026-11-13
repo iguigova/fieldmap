@@ -130,6 +130,13 @@
           funder and its parts separately: of 581 recent papers that name the National Cancer
           Institute, 397 also name the National Institutes of Health, and only those count for
           both.</p>
+        <p>Each subfield lists the map's journals its papers appeared in, most first. For each
+          journal, OpenAlex gives its fee for the latest year it has, whether it's fully open access
+          and whether it's in MEDLINE. For a journal that isn't fully open access, the fee is the
+          price of making one article open. The Directory of Open Access Journals gives a listed
+          journal's licences and whether it waives the fee; for a journal it doesn't list, neither is
+          known here. Fees change every year, so each list says the day it was fetched, and each
+          fact links to where it came from.</p>
         <p>A subfield's nearest are the three whose papers it cites and is cited by most, scaled by
           the two subfields' sizes so that two large ones are not near just for being large.</p>
         <p>The groups come from k-means on each paper's words and citations, set to 40 groups.
@@ -139,12 +146,13 @@
     </section>
   </main>
 
-  <footer><div class="line">Data: OpenAlex, CC0</div><div class="band"></div></footer>
+  <footer><div class="line">Data: OpenAlex, CC0, and journal records from <a href="https://doaj.org/terms/">DOAJ</a></div><div class="band"></div></footer>
 </div>
 
 <script type="module">
 import {
-  HEIGHT, WIDTH, citations, entries, layout, links, place, readMap, recurrence, sample, soft, tally, toLookUp,
+  HEIGHT, WIDTH, citations, entries, feeText, layout, licenceText, links, place, readMap, recurrence, sample, soft,
+  tally, toLookUp, venues, waiverText,
 } from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -234,7 +242,9 @@ const listOf = (items, item) => {
   return list;
 };
 
-const credited = (e) => el('li', {}, `${e.name} (${e.papers} ${e.papers === 1 ? 'paper' : 'papers'})`);
+const papersOf = (n) => `${n} ${n === 1 ? 'paper' : 'papers'}`;
+
+const credited = (e) => el('li', {}, `${e.name} (${papersOf(e.papers)})`);
 
 const whoList = (heading, entries) => [el('h4', {}, heading), listOf(entries, credited)];
 
@@ -247,6 +257,23 @@ const nearest = (cluster) => {
   return line;
 };
 
+const linked = (href, text) => (href ? el('a', { href }, text) : text);
+
+const listed = (doaj) => {
+  if (!doaj) return ["Not in DOAJ, so its waiver and licences aren't known here."];
+  return ['In ', el('a', { href: doaj.url }, 'DOAJ'), `: ${licenceText(doaj)}; `,
+    linked(doaj.waiver_url, waiverText(doaj)), '.'];
+};
+
+const venue = (j) => {
+  const li = el('li');
+  const facts = el('div', { class: 'meta' });
+  facts.append(`${feeText(j)}, per `, el('a', { href: j.openalex }, 'OpenAlex'), '. ',
+    j.medline ? 'In MEDLINE. ' : "OpenAlex doesn't list it in MEDLINE. ", ...listed(j.doaj));
+  li.append(linked(j.homepage, j.name), el('span', { class: 'meta' }, ` (${papersOf(j.papers)}, ${j.publisher})`), facts);
+  return li;
+};
+
 const card = (cluster, n) => {
   const li = el('li', { id: `c${cluster.id}` });
   const meta = el('div', { class: 'meta' }, `${cluster.size} papers · ${stability(cluster)}`);
@@ -255,6 +282,7 @@ const card = (cluster, n) => {
   li.append(
     el('div', { class: 'name' }, cluster.name.join(', ')), meta, nearest(cluster),
     fold('Most-cited papers to start with', listOf(cluster.starters, starter)),
+    fold(`Where it publishes, as of ${fieldMap.venues.fetched}`, listOf(venues(fieldMap, cluster), venue)),
     fold(`Who publishes here, ${years}`,
       ...whoList('Authors', cluster.who.authors), ...whoList('Institutions', cluster.who.institutions)),
     fold(`Who funds it, ${years}`, listOf(cluster.who.funders, credited)));

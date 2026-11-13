@@ -1,5 +1,5 @@
 """Turn the scope's works into the map the page reads: clusters, names,
-who works in each and which others each cites."""
+who works in each, where it publishes and which others each cites."""
 
 from collections import Counter
 from dataclasses import dataclass
@@ -96,6 +96,7 @@ class Paper:
     cites: int
     text: str
     refs: tuple[str, ...]
+    journal: str
 
 
 def short_doi(doi: str | None) -> str | None:
@@ -115,6 +116,7 @@ def paper(work: dict) -> Paper:
         cites=work["cited_by_count"],
         text=f"{work['title']} {abstract(work['abstract_inverted_index'])}",
         refs=tuple(map(short_id, work.get("referenced_works") or ())),
+        journal=short_id(work["primary_location"]["source"]["id"]),
     )
 
 
@@ -298,6 +300,12 @@ def starters(members: list[Paper]) -> list[dict]:
     return [starter(p) for p in by_cites[:STARTERS]]
 
 
+def journals(members: list[Paper]) -> list[dict]:
+    counts = Counter(p.journal for p in members)
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [{"id": j, "papers": n} for j, n in ranked]
+
+
 def cluster_entry(c, members, position, terms, refs, recurred) -> dict:
     return {
         "id": c,
@@ -307,8 +315,22 @@ def cluster_entry(c, members, position, terms, refs, recurred) -> dict:
         "x": round(float(position[0]), 4),
         "y": round(float(position[1]), 4),
         "starters": starters(members),
+        "journals": journals(members),
         "terms": terms,
         "refs": refs,
+    }
+
+
+def memberships(corpus, labels, count: int) -> list[list[Paper]]:
+    return [
+        [p for p, k in zip(corpus, labels, strict=True) if k == c]
+        for c in range(count)
+    ]
+
+
+def doi_clusters(corpus, labels) -> dict[str, int]:
+    return {
+        p.doi: int(k) for p, k in zip(corpus, labels, strict=True) if p.doi
     }
 
 
@@ -325,10 +347,7 @@ def field_map(
     terms = profiles(TERM_SETTINGS, texts, labels, count, SHIPPED_TERMS)
     refs = profiles(REF_SETTINGS, cited, labels, count, SHIPPED_REFS)
     positions = layout(points, labels, count)
-    members = [
-        [p for p, k in zip(corpus, labels, strict=True) if k == c]
-        for c in range(count)
-    ]
+    members = memberships(corpus, labels, count)
     by_id = {short_id(w["id"]): w for w in who_works}
     since = max(p.year for p in corpus) - ACTIVE_YEARS + 1
     sizes = np.array([len(m) for m in members])
@@ -346,7 +365,5 @@ def field_map(
             | {"who": who(members[c], by_id, since), "near": near[c]}
             for c in range(count)
         ],
-        "dois": {
-            p.doi: int(k) for p, k in zip(corpus, labels, strict=True) if p.doi
-        },
+        "dois": doi_clusters(corpus, labels),
     }

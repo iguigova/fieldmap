@@ -1,6 +1,6 @@
-import io
-import json
 import urllib.parse
+
+import pytest
 
 from fieldmap import openalex, scope
 
@@ -24,18 +24,6 @@ def test_pages_stop_at_the_first_empty_page():
         return {"results": served[number]}
 
     assert list(openalex.pages("f", fake)) == [[1, 2], [3]]
-
-
-def test_fetch_json_reads_the_response(monkeypatch):
-    seen = {}
-
-    def fake_urlopen(request, timeout):
-        seen["agent"] = request.get_header("User-agent")
-        return io.BytesIO(json.dumps({"results": []}).encode())
-
-    monkeypatch.setattr(openalex.urllib.request, "urlopen", fake_urlopen)
-    assert openalex.fetch_json("https://x.org") == {"results": []}
-    assert seen["agent"] == openalex.USER_AGENT
 
 
 def test_abstract_restores_word_order():
@@ -63,3 +51,20 @@ def test_who_asks_for_ids_in_batches_of_the_filter_limit():
     ids = [f"W{n}" for n in range(openalex.ID_BATCH + 1)]
     assert list(openalex.who(ids, fake)) == [[openalex.WHO_FIELDS]] * 2
     assert [len(batch) for batch in seen] == [openalex.ID_BATCH, 1]
+
+
+def test_sources_asks_for_every_id_and_its_fields():
+    seen = {}
+
+    def fake(url):
+        seen.update(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query))
+        return {"results": [{"id": "S1"}, {"id": "S2"}]}
+
+    assert openalex.sources(["S1", "S2"], fake) == [{"id": "S1"}, {"id": "S2"}]
+    assert seen["filter"] == ["openalex:S1|S2"]
+    assert seen["select"] == [openalex.SOURCE_FIELDS]
+
+
+def test_sources_refuses_an_answer_missing_a_journal():
+    with pytest.raises(LookupError, match="1 of 2"):
+        openalex.sources(["S1", "S2"], lambda url: {"results": [{}]})

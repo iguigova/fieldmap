@@ -4,6 +4,7 @@ import pytest
 
 from fieldmap import cli, scope
 from tests.test_check import PASSING
+from tests.test_venues import HYBRID, OPEN
 
 
 def write(path, works):
@@ -42,15 +43,43 @@ def test_who_fetches_the_credits_of_every_work(raw, monkeypatch, capsys):
     assert capsys.readouterr().out.startswith("38 of 38")
 
 
-def test_build_writes_the_map_with_its_scope(raw, who, tmp_path, monkeypatch):
+def test_venues_writes_each_journal_and_its_doaj_record(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(cli.openalex, "sources", lambda ids: [HYBRID, OPEN])
+    monkeypatch.setattr(
+        cli.doaj, "journal", lambda issns: {"bibjson": {}} if issns else None
+    )
+    out = tmp_path / "venues.json"
+    assert cli.main(["venues", "--venues", str(out)]) == 0
+    fetched = json.loads(out.read_text())
+    assert fetched["doaj"] == {"S1": {"bibjson": {}}, "S2": None}
+    assert capsys.readouterr().out.startswith("2 journals, 1 in DOAJ")
+
+
+def test_build_writes_the_map_with_its_scope_and_venues(
+    raw, who, tmp_path, monkeypatch
+):
     monkeypatch.setattr(scope, "CLUSTERS", 3)
     monkeypatch.setattr(cli, "DIMENSIONS", 2)
+    fetched = tmp_path / "venues.json"
+    fetched.write_text(
+        json.dumps(
+            {
+                "fetched": "2026-11-13",
+                "sources": [HYBRID],
+                "doaj": {"S1": None},
+            }
+        )
+    )
     out = tmp_path / "map.json"
-    args = ["build", "--raw", str(raw), "--who", str(who), "--map", str(out)]
+    args = ["build", "--raw", str(raw), "--who", str(who)]
+    args += ["--venues", str(fetched), "--map", str(out)]
     assert cli.main(args) == 0
     built = json.loads(out.read_text())
     assert built["papers"] == 36
     assert built["scope"]["years"] == list(scope.YEARS)
+    assert built["venues"]["journals"]["S1"]["name"] == "Hybrid"
 
 
 @pytest.mark.parametrize(

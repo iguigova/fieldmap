@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  HEIGHT, WIDTH, citations, cleanDoi, entries, layout, links, lookupUrl, place, readMap, recurrence, sample, shortId,
-  shortName, soft, tally, titleTerms, toLookUp,
+  HEIGHT, WIDTH, citations, cleanDoi, entries, feeText, layout, licenceText, links, lookupUrl, place, readMap,
+  recurrence, sample, shortId, shortName, soft, tally, titleTerms, toLookUp, venues, waiverText,
 } from '../fieldmap.js';
 
 const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
@@ -141,5 +141,33 @@ test('every shipped subfield names its neighbours and who works in it', () => {
   SHIPPED.clusters.forEach((c) => {
     assert.ok(c.near.length > 0 && c.near.every((n) => ids.has(n.id) && n.id !== c.id));
     assert.deepEqual(Object.keys(c.who), ['authors', 'institutions', 'funders']);
+  });
+});
+
+test('a subfield\'s venues are its journals with their facts, in its order', () => {
+  const fieldMap = { venues: { journals: { S1: { name: 'One' }, S2: { name: 'Two' } } } };
+  const cluster = { journals: [{ id: 'S2', papers: 9 }, { id: 'S1', papers: 3 }] };
+  assert.deepEqual(venues(fieldMap, cluster), [{ name: 'Two', papers: 9 }, { name: 'One', papers: 3 }]);
+});
+
+test('a fee reads as the price of publishing or of open access, with its year', () => {
+  const fee = { usd: 3780, year: 2025 };
+  assert.equal(feeText({ open_access: true, fee }), 'Fully open access; charges $3,780 in 2025 to publish');
+  assert.equal(feeText({ open_access: false, fee }),
+    'Not fully open access; open access for an article costs $3,780 in 2025');
+  assert.equal(feeText({ open_access: true, fee: null }), 'Fully open access; OpenAlex lists no fee');
+  assert.equal(feeText({ open_access: false, fee: null }), 'Not fully open access; OpenAlex lists no fee');
+});
+
+test('a DOAJ listing reads as its licences and its waiver', () => {
+  assert.equal(licenceText({ licences: ['CC BY', 'CC BY-NC-ND'] }), 'published under CC BY or CC BY-NC-ND');
+  assert.equal(waiverText({ waiver: true }), 'offers a fee waiver');
+  assert.equal(waiverText({ waiver: false }), 'lists no fee waiver');
+});
+
+test('every shipped subfield\'s journals are shipped venues, and add up to its size', () => {
+  SHIPPED.clusters.forEach((c) => {
+    assert.ok(c.journals.every((j) => j.id in SHIPPED.venues.journals));
+    assert.equal(c.journals.reduce((n, j) => n + j.papers, 0), c.size);
   });
 });

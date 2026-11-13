@@ -122,6 +122,27 @@ export const links = (clusters) => [...new Map(clusters.flatMap((c) => c.near.ma
   return [`${a} ${b}`, { a, b }];
 }))).values()];
 
+// ---- Venues: where a subfield publishes, and what each journal charges ---
+
+// Each journal the subfield's papers appeared in, most papers first.
+export const venues = (fieldMap, cluster) =>
+  cluster.journals.map(({ id, papers }) => ({ ...fieldMap.venues.journals[id], papers }));
+
+const dollars = (usd) => `$${usd.toLocaleString('en-US')}`;
+
+// The fee is the article processing charge: for a journal that is not fully
+// open access, the price of making one article open.
+export const feeText = (j) => {
+  if (!j.fee) return `${j.open_access ? 'Fully open access' : 'Not fully open access'}; OpenAlex lists no fee`;
+  const price = `${dollars(j.fee.usd)} in ${j.fee.year}`;
+  return j.open_access ? `Fully open access; charges ${price} to publish`
+    : `Not fully open access; open access for an article costs ${price}`;
+};
+
+export const licenceText = (doaj) => `published under ${doaj.licences.join(' or ')}`;
+
+export const waiverText = (doaj) => (doaj.waiver ? 'offers a fee waiver' : 'lists no fee waiver');
+
 // ---- Layout: circles and their labels, kept apart ------------------------
 
 // A first name term two subfields share takes the second term too.

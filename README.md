@@ -1,8 +1,8 @@
 # Fieldmap
 
 A map of biostatistics that shows which of its subfields a reading list
-covers and which it misses, who works in each and which subfields each
-one is closest to.
+covers and which it misses, who works in each, which subfields each one
+is closest to, and which journals each publishes in and what they charge.
 
 **[Open the map →](https://iguigova.github.io/fieldmap/)**
 
@@ -35,6 +35,11 @@ Last, the theme switch turns the page dark.](docs/demo.gif)
    publishes here* lists its five most frequent authors and institutions
    from 2021 to 2025, and *Who funds it* its five most frequent funders.
    *Nearest by citation* links its three closest subfields.
+5. Open *Where it publishes* on a subfield to see which of the map's
+   journals its papers appeared in, most first. Each journal says whether
+   it is fully open access, its fee, whether it is in MEDLINE and, when
+   DOAJ lists it, its licences and whether it waives the fee. Each fact
+   links to its source, and the heading gives the day they were fetched.
 
 *Try a sample reading list* shows the same thing without a library.
 
@@ -71,6 +76,13 @@ what those papers cite.
   separately: of 581 recent papers that name the National Cancer
   Institute, 397 also name the National Institutes of Health, and only
   those count for both.
+- **Venues:** the eight journals above, and no others. OpenAlex gives each
+  one's fee for the latest year it lists, whether it is fully open access
+  and whether it is in MEDLINE. For a journal that is not fully open
+  access, the fee is the price of making one article open. DOAJ, the
+  Directory of Open Access Journals, gives a journal's licences and fee
+  waiver; it lists one of the eight, BMC Medical Research Methodology, so
+  for the other seven neither is known here.
 
 ## Method
 
@@ -116,6 +128,10 @@ setting.
     ways, divided by the square root of the product of their sizes, so two
     large groups are not near just for being large. Each group ships the
     three strongest, with their citation counts.
+12. **Venues.** Each group ships the number of its papers in each journal.
+    `src/fieldmap/venues.py` turns each journal's OpenAlex and DOAJ
+    records into the facts the page shows, and the map ships them with
+    the day they were fetched.
 
 `uv run fieldmap check` tests the result against subfields known before
 the build. Each of the five named in
@@ -165,6 +181,7 @@ data:
 ```sh
 uv run fieldmap fetch      # download the papers into data/raw/
 uv run fieldmap who        # download their authors and funders, by id
+uv run fieldmap venues     # download the journals' OpenAlex and DOAJ records
 uv run fieldmap build      # cluster them into data/map.json
 uv run fieldmap check      # check the named subfields in check.py are found
 uv run fieldmap stability  # rerun the clustering at other k and seeds
@@ -184,6 +201,29 @@ The demo GIF: serve the folder above at `http://127.0.0.1:8765/` and run
 It records frames into `docs/frames/`, and `docs/make_demo.sh` turns them
 into `docs/demo.gif`.
 
+## Extend it
+
+Each of these is a change to the pipeline and the page, and open to a
+request:
+
+- **More journals.** The venues are the eight the map is built from. A
+  journal added to `JOURNALS` in `src/fieldmap/scope.py` joins both the
+  map and the venues on the next build.
+- **Another field.** The same steps map another field; *Stability* above
+  names the three settings that change.
+- **Licence checks.** A paper reusing a figure or table under one
+  Creative Commons licence can only go to a venue whose licence is
+  compatible with it. The venues' licences are already on the map; the
+  check needs the licence of each reused item, which BibTeX does not
+  carry.
+- **Fresher facts.** Fees change every year. Rerunning `venues` and
+  `build` refreshes them.
+
+To ask for one of these, or anything else, open an issue at
+[github.com/iguigova/fieldmap/issues](https://github.com/iguigova/fieldmap/issues).
+A pull request is welcome too.
+
 ## Licence
 
-Code: MIT, see `LICENSE`. Data: OpenAlex, CC0.
+Code: MIT, see `LICENSE`. Data: OpenAlex, CC0, and journal records from
+DOAJ, under [DOAJ's terms](https://doaj.org/terms/).

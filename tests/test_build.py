@@ -130,7 +130,7 @@ def test_who_ranks_by_papers_then_name():
 
 
 def paper(pid: str, refs: tuple[str, ...]) -> build.Paper:
-    return build.Paper(pid, None, pid, 2020, 0, pid, refs)
+    return build.Paper(pid, None, pid, 2020, 0, pid, refs, "S1")
 
 
 def test_citation_counts_count_citations_from_one_cluster_to_another():
@@ -149,3 +149,9 @@ def test_neighbours_are_the_strongest_scaled_by_size():
 
 def test_themes_citing_only_themselves_have_no_neighbours(works):
     assert all(c["near"] == [] for c in built(works)["clusters"])
+
+
+def test_a_cluster_counts_its_papers_per_journal_most_first(works):
+    for c in built(works)["clusters"]:
+        assert [j["id"] for j in c["journals"]] == ["S1", "S2"]
+        assert [j["papers"] for j in c["journals"]] == [9, 3]

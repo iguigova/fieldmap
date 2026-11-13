@@ -21,6 +21,9 @@ def work(n: int, theme: str, words: str) -> dict:
         "cited_by_count": n,
         "abstract_inverted_index": inverted,
         "referenced_works": [ref(theme, n % 3), ref(theme, (n + 1) % 3)],
+        "primary_location": {
+            "source": {"id": f"https://openalex.org/S{1 + n % 4 // 3}"}
+        },
     }
 
 
