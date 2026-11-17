@@ -1,6 +1,6 @@
-"""The fieldmap command: fetch the scope, who wrote and funded it and what
-its journals charge, build the map, check it, and measure how stable its
-clusters are."""
+"""The fieldmap command: fetch the scope's papers and reviews, who wrote and
+funded them and what its journals charge, build the map, check it, and
+measure how stable its clusters are."""
 
 import argparse
 import json
@@ -12,15 +12,16 @@ from fieldmap.build import DIMENSIONS, SEEDS, field_map, short_id
 from fieldmap.venues import venues
 
 RAW = Path("data/raw/works.jsonl")
+REVIEWS = Path("data/raw/reviews.jsonl")
 WHO = Path("data/raw/who.jsonl")
 VENUES = Path("data/raw/venues.json")
 MAP = Path("data/map.json")
 
 
-def fetch(raw: Path) -> str:
+def fetch(kind: str, raw: Path) -> str:
     works = [
         w
-        for query in scope.works_filters()
+        for query in scope.works_filters(kind)
         for page in openalex.pages(query)
         for w in page
     ]
@@ -53,9 +54,15 @@ def fetch_venues(out: Path) -> str:
     return f"{len(sources)} journals, {in_doaj} in DOAJ, written to {out}"
 
 
-def build(raw: Path, who: Path, fetched: Path, out: Path) -> str:
+def build(
+    raw: Path, reviews: Path, who: Path, fetched: Path, out: Path
+) -> str:
     built = field_map(
-        read_works(raw), read_works(who), scope.CLUSTERS, DIMENSIONS
+        read_works(raw),
+        read_works(reviews),
+        read_works(who),
+        scope.CLUSTERS,
+        DIMENSIONS,
     )
     built["venues"] = venues(json.loads(fetched.read_text()))
     built["scope"] = {
@@ -64,11 +71,19 @@ def build(raw: Path, who: Path, fetched: Path, out: Path) -> str:
         "built": date.today().isoformat(),
     }
     out.write_text(json.dumps(built, separators=(",", ":")))
-    return f"{built['papers']} papers in {len(built['clusters'])} clusters"
+    placed = built["reviews"]
+    return (
+        f"{built['papers']} papers in {len(built['clusters'])} clusters, "
+        f"{placed['placed']} of {placed['fetched']} reviews placed"
+    )
 
 
 def run_fetch(args) -> tuple[str, int]:
-    return fetch(args.raw), 0
+    return fetch(scope.ARTICLE, args.raw), 0
+
+
+def run_reviews(args) -> tuple[str, int]:
+    return fetch(scope.REVIEW, args.reviews), 0
 
 
 def run_who(args) -> tuple[str, int]:
@@ -80,7 +95,8 @@ def run_venues(args) -> tuple[str, int]:
 
 
 def run_build(args) -> tuple[str, int]:
-    return build(args.raw, args.who, args.venues, args.map), 0
+    paths = (args.raw, args.reviews, args.who, args.venues, args.map)
+    return build(*paths), 0
 
 
 def run_check(args) -> tuple[str, int]:
@@ -101,6 +117,7 @@ def run_stability(args) -> tuple[str, int]:
 
 COMMANDS = {
     "fetch": run_fetch,
+    "reviews": run_reviews,
     "who": run_who,
     "venues": run_venues,
     "build": run_build,
@@ -113,6 +130,7 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="fieldmap", description=__doc__)
     p.add_argument("command", choices=COMMANDS)
     p.add_argument("--raw", type=Path, default=RAW)
+    p.add_argument("--reviews", type=Path, default=REVIEWS)
     p.add_argument("--who", type=Path, default=WHO)
     p.add_argument("--venues", type=Path, default=VENUES)
     p.add_argument("--map", type=Path, default=MAP)

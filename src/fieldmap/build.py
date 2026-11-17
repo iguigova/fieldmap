@@ -288,6 +288,26 @@ def nearest(row: np.ndarray) -> list:
     return [j for j in np.argsort(-row, kind="stable")[:NEIGHBOURS] if row[j]]
 
 
+# ---- Reviews: placed by what they cite, as the page places a paper -------
+
+
+def by_citations(ref_profiles: list[dict], refs: tuple[str, ...]):
+    scores = [sum(w.get(r, 0) for r in refs) for w in ref_profiles]
+    top = int(np.argmax(scores))
+    return top if scores[top] > 0 else None
+
+
+def placed(ref_profiles: list[dict], reviews: list[Paper]) -> list:
+    return [by_citations(ref_profiles, r.refs) for r in reviews]
+
+
+def reviewed(clusters: list, reviews: list[Paper], count: int) -> list:
+    return [
+        [r for r, c in zip(reviews, clusters, strict=True) if c == k]
+        for k in range(count)
+    ]
+
+
 # ---- The map -------------------------------------------------------------
 
 
@@ -335,7 +355,11 @@ def doi_clusters(corpus, labels) -> dict[str, int]:
 
 
 def field_map(
-    works: list[dict], who_works: list[dict], count: int, dimensions: int
+    works: list[dict],
+    review_works: list[dict],
+    who_works: list[dict],
+    count: int,
+    dimensions: int,
 ) -> dict:
     corpus = papers(works)
     points = vectors(corpus, dimensions)
@@ -352,6 +376,9 @@ def field_map(
     since = max(p.year for p in corpus) - ACTIVE_YEARS + 1
     sizes = np.array([len(m) for m in members])
     near = neighbours(citation_counts(corpus, labels, count), sizes)
+    reviews = papers(review_works)
+    homes = placed(refs, reviews)
+    by_cluster = reviewed(homes, reviews, count)
     return {
         "papers": len(corpus),
         "stop_words": STOP_WORDS,
@@ -362,8 +389,16 @@ def field_map(
             cluster_entry(
                 c, members[c], positions[c], terms[c], refs[c], recurred[c]
             )
-            | {"who": who(members[c], by_id, since), "near": near[c]}
+            | {
+                "who": who(members[c], by_id, since),
+                "near": near[c],
+                "reviews": starters(by_cluster[c]),
+            }
             for c in range(count)
         ],
+        "reviews": {
+            "fetched": len(reviews),
+            "placed": sum(h is not None for h in homes),
+        },
         "dois": doi_clusters(corpus, labels),
     }

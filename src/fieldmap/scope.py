@@ -12,17 +12,19 @@ JOURNALS = {
 }
 YEARS = (2015, 2025)
 CLUSTERS = 40
+ARTICLE = "article"
+REVIEW = "review"
 
 
-def works_filter(year: int) -> str:
+def works_filter(kind: str, year: int) -> str:
     sources = "|".join(JOURNALS)
     return (
         f"primary_location.source.id:{sources},"
         f"publication_year:{year},"
-        "type:article"
+        f"type:{kind}"
     )
 
 
-def works_filters() -> list[str]:
+def works_filters(kind: str) -> list[str]:
     first, last = YEARS
-    return [works_filter(year) for year in range(first, last + 1)]
+    return [works_filter(kind, year) for year in range(first, last + 1)]

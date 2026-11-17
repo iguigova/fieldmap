@@ -34,6 +34,19 @@ def works() -> list[dict]:
     return [*themed, cover, dict(themed[1], title=None)]
 
 
+def review(n: int, cites: list[str]) -> dict:
+    return work(n, "review", "review") | {"referenced_works": cites}
+
+
+@pytest.fixture
+def reviews() -> list[dict]:
+    return [
+        review(1, [ref("spatial", 0), ref("spatial", 1)]),
+        review(2, [ref("spatial", 2), ref("spatial", 0), ref("missing", 0)]),
+        review(3, [ref("elsewhere", 0)]),
+    ]
+
+
 def credit(work: dict) -> dict:
     theme = (
         work["id"].removeprefix("https://openalex.org/W").rstrip("0123456789")

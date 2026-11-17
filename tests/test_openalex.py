@@ -34,10 +34,11 @@ def test_abstract_of_nothing_is_empty():
     assert openalex.abstract(None) == ""
 
 
-def test_scope_asks_one_query_per_year():
-    filters = scope.works_filters()
+def test_scope_asks_one_query_per_year_of_the_kind():
+    filters = scope.works_filters(scope.REVIEW)
     assert len(filters) == scope.YEARS[1] - scope.YEARS[0] + 1
     assert "publication_year:2015," in filters[0]
+    assert filters[0].endswith(",type:review")
 
 
 def test_who_asks_for_ids_in_batches_of_the_filter_limit():

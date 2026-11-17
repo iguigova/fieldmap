@@ -242,6 +242,9 @@ const listOf = (items, item) => {
   return list;
 };
 
+const reviews = (cluster) => (cluster.reviews.length ? listOf(cluster.reviews, starter)
+  : el('p', { class: 'meta' }, "None of the map's reviews cites mostly this subfield's work."));
+
 const papersOf = (n) => `${n} ${n === 1 ? 'paper' : 'papers'}`;
 
 const credited = (e) => el('li', {}, `${e.name} (${papersOf(e.papers)})`);
@@ -281,6 +284,7 @@ const card = (cluster, n) => {
   const years = `${fieldMap.active_since}–${fieldMap.scope.years[1]}`;
   li.append(
     el('div', { class: 'name' }, cluster.name.join(', ')), meta, nearest(cluster),
+    fold('Reviews to start with', reviews(cluster)),
     fold('Most-cited papers to start with', listOf(cluster.starters, starter)),
     fold(`Where it publishes, as of ${fieldMap.venues.fetched}`, listOf(venues(fieldMap, cluster), venue)),
     fold(`Who publishes here, ${years}`,

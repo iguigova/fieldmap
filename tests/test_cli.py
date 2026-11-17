@@ -19,16 +19,28 @@ def raw(tmp_path, works):
 
 
 @pytest.fixture
+def reviewed(raw, reviews):
+    return write(raw.parent / "reviews.jsonl", reviews)
+
+
+@pytest.fixture
 def who(raw, who_works):
     return write(raw.parent / "who.jsonl", who_works)
 
 
-def test_fetch_writes_every_page_of_every_year(tmp_path, monkeypatch):
-    monkeypatch.setattr(scope, "works_filters", lambda: ["a", "b"])
+@pytest.mark.parametrize(
+    ("command", "flag", "kind"),
+    [("fetch", "--raw", "article"), ("reviews", "--reviews", "review")],
+)
+def test_fetch_writes_every_page_of_every_year_of_its_kind(
+    tmp_path, monkeypatch, command, flag, kind
+):
+    monkeypatch.setattr(scope, "works_filters", lambda k: [k, "b"])
     monkeypatch.setattr(cli.openalex, "pages", lambda q: [[{"q": q}], [{}]])
-    raw = tmp_path / "raw" / "works.jsonl"
-    assert cli.main(["fetch", "--raw", str(raw)]) == 0
-    assert len(cli.read_works(raw)) == 4
+    out = tmp_path / "raw" / "works.jsonl"
+    assert cli.main([command, flag, str(out)]) == 0
+    assert cli.read_works(out)[0] == {"q": kind}
+    assert len(cli.read_works(out)) == 4
 
 
 def echo(ids):
@@ -58,7 +70,7 @@ def test_venues_writes_each_journal_and_its_doaj_record(
 
 
 def test_build_writes_the_map_with_its_scope_and_venues(
-    raw, who, tmp_path, monkeypatch
+    raw, reviewed, who, tmp_path, monkeypatch, capsys
 ):
     monkeypatch.setattr(scope, "CLUSTERS", 3)
     monkeypatch.setattr(cli, "DIMENSIONS", 2)
@@ -74,8 +86,10 @@ def test_build_writes_the_map_with_its_scope_and_venues(
     )
     out = tmp_path / "map.json"
     args = ["build", "--raw", str(raw), "--who", str(who)]
+    args += ["--reviews", str(reviewed)]
     args += ["--venues", str(fetched), "--map", str(out)]
     assert cli.main(args) == 0
+    assert capsys.readouterr().out.endswith(", 2 of 3 reviews placed\n")
     built = json.loads(out.read_text())
     assert built["papers"] == 36
     assert built["scope"]["years"] == list(scope.YEARS)

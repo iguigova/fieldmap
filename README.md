@@ -30,11 +30,13 @@ Last, the theme switch turns the page dark.](docs/demo.gif)
      the papers. Each subfield's card says how many reruns found it.
    - **Line:** joins a subfield to one of the three it cites and is cited
      by most. Point at or tab to a circle to light up its three.
-4. Open a gap in the *Gaps* list below the map. *Most-cited papers to start
-   with* lists the five papers from that subfield cited most often. *Who
-   publishes here* lists its five most frequent authors and institutions
-   from 2021 to 2025, and *Who funds it* its five most frequent funders.
-   *Nearest by citation* links its three closest subfields.
+4. Open a gap in the *Gaps* list below the map. *Reviews to start with*
+   lists the five most-cited reviews placed in that subfield, and
+   *Most-cited papers to start with* the five papers from it cited most
+   often. *Who publishes here* lists its five most frequent authors and
+   institutions from 2021 to 2025, and *Who funds it* its five most
+   frequent funders. *Nearest by citation* links its three closest
+   subfields.
 5. Open *Where it publishes* on a subfield to see which of the map's
    journals its papers appeared in, most first. Each journal says whether
    it is fully open access, its fee, whether it is in MEDLINE and, when
@@ -67,6 +69,14 @@ what those papers cite.
   back while the rest built the subfields, citations picked the paper's
   own subfield two times in three and title words about half the time.
   The line under *Load a BibTeX file* gives the counts.
+- **Reviews:** the 545 works OpenAlex types as reviews in the same
+  journals and years. They take no part in building the subfields; each
+  is placed by the works it cites, as an outside paper is. 530 are
+  placed, and three subfields get none: *censored, interval*, *recurrent,
+  events* and *cure, mixture*. Some are systematic reviews of a clinical
+  question rather than introductions to a method. In the soft subfield
+  *regression, case, sampling* they run from spline software in R to
+  kernel estimates of spatial risk.
 - **Who:** the authors, institutions and funders OpenAlex records on a
   subfield's papers from 2021 to 2025. Of those 5,409 papers, 99% name an
   institution and 76% a funder. OpenAlex sometimes credits a paper to the
@@ -114,7 +124,10 @@ setting.
    between their centres; metric MDS lays those distances out in two
    dimensions.
 8. **Papers to start with.** A group's five papers with the most
-   citations in OpenAlex.
+   citations in OpenAlex, and its five most-cited reviews. A review is
+   placed in the group whose cited works it cites most, scored as the
+   page scores a paper's citations, and left unplaced when it cites none
+   of them.
 9. **Reruns.** k-means runs four more times on the same vectors, with
    seeds 1 to 4. A group is found again in a rerun when a group there
    shares at least half of the papers in either (Jaccard ≥ 0.5). Each
@@ -180,6 +193,7 @@ data:
 
 ```sh
 uv run fieldmap fetch      # download the papers into data/raw/
+uv run fieldmap reviews    # download the reviews into data/raw/
 uv run fieldmap who        # download their authors and funders, by id
 uv run fieldmap venues     # download the journals' OpenAlex and DOAJ records
 uv run fieldmap build      # cluster them into data/map.json
@@ -216,6 +230,13 @@ request:
   compatible with it. The venues' licences are already on the map; the
   check needs the licence of each reused item, which BibTeX does not
   carry.
+- **Reading order.** Within a subfield, a paper is read after the
+  papers it cites. 11,320 of the 19,024 citations between the map's
+  papers stay inside one subfield, and every subfield holds at least 55
+  of them.
+- **New papers.** The map is built from a snapshot. A link per subfield
+  to OpenAlex's newest papers citing its starters would show what came
+  after it.
 - **Fresher facts.** Fees change every year. Rerunning `venues` and
   `build` refreshes them.
 

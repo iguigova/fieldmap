@@ -4,13 +4,18 @@ from pathlib import Path
 import numpy as np
 
 from fieldmap import build
-from tests.conftest import credit
+from tests.conftest import credit, ref
 
 TITLE_TERMS = json.loads(Path("tests/title_terms.json").read_text())
 
 
-def built(works):
-    return build.field_map(works, [credit(w) for w in works], 3, 2)
+def built(works, reviews=()):
+    who_works = [credit(w) for w in works]
+    return build.field_map(works, list(reviews), who_works, 3, 2)
+
+
+def cluster_of(field_map, theme):
+    return field_map["dois"][f"10.1/{theme}0"]
 
 
 def test_front_matter_and_untitled_works_are_not_papers(works):
@@ -155,3 +160,24 @@ def test_a_cluster_counts_its_papers_per_journal_most_first(works):
     for c in built(works)["clusters"]:
         assert [j["id"] for j in c["journals"]] == ["S1", "S2"]
         assert [j["papers"] for j in c["journals"]] == [9, 3]
+
+
+def test_a_review_is_placed_where_its_citations_point(works, reviews):
+    field_map = built(works, reviews)
+    spatial = field_map["clusters"][cluster_of(field_map, "spatial")]
+    assert [r["cites"] for r in spatial["reviews"]] == [2, 1]
+
+
+def test_a_review_citing_nothing_on_the_map_is_unplaced(works, reviews):
+    assert built(works, reviews)["reviews"] == {"fetched": 3, "placed": 2}
+
+
+def test_by_citations_picks_the_first_highest_score():
+    profiles = [{"a": 0.5}, {"a": 0.5, "b": 0.1}, {"b": 1.0}]
+    assert build.by_citations(profiles, ("a",)) == 0
+    assert build.by_citations(profiles, ("a", "b")) == 2
+    assert build.by_citations(profiles, ("z",)) is None
+
+
+def test_a_review_needs_a_profile_term_to_score():
+    assert build.by_citations([{ref("x", 0): 0.0}], (ref("x", 0),)) is None
