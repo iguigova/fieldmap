@@ -298,7 +298,7 @@ BibTeX, placing papers and laying out the map. The page loads the site's
 shared `brand.css` and `brand.js` from the folder above, so serve that
 folder to run it locally and open `/fieldmap/`.
 
-Tests: `uv run pytest` for the pipeline and `node --test tests/*.test.mjs`
+Tests: `uv run pytest` for the pipeline and `npm test`
 for `fieldmap.js`, each at full line coverage. Lint: `uv run ruff check
 src tests`.
 
