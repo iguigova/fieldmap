@@ -2,11 +2,14 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from fieldmap import build
 from tests.conftest import credit, ref, work
 
 TITLE_TERMS = json.loads(Path("tests/title_terms.json").read_text())
+# Reading-order cases the page's fieldmap.js passes too.
+READING_CASES = json.loads(Path("tests/reading_cases.json").read_text())
 
 
 def built(works, reviews=()):
@@ -213,6 +216,19 @@ def test_reading_order_puts_each_paper_after_those_it_cites():
 def test_reading_order_holds_only_papers_its_subfield_cites():
     corpus = [paper("a", ("x",)), paper("b", ("x",)), paper("x", ())]
     assert [r["title"] for r in build.reading(corpus)] == ["x"]
+
+
+def case_paper(m: dict) -> build.Paper:
+    pid, refs = m["id"], tuple(m["refs"])
+    return build.Paper(pid, None, pid, m["year"], 0, "", refs, "S1", True)
+
+
+@pytest.mark.parametrize("case", READING_CASES, ids=lambda c: c["name"])
+def test_reading_order_matches_the_shared_cases(case):
+    corpus = [case_paper(m) for m in case["members"]]
+    assert [
+        (r["title"], r["inside"], r["after"]) for r in build.reading(corpus)
+    ] == list(zip(case["order"], case["inside"], case["after"], strict=True))
 
 
 def test_reading_order_stops_at_its_length():

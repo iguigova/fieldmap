@@ -15,6 +15,9 @@
     border-radius: 4px; padding: 8px 12px; min-height: 44px; cursor: pointer; }
   button.plain:hover { border-color: var(--link); }
   input[type=file] { font: inherit; min-height: 44px; }
+  input[type=search] { font: inherit; min-height: 44px; padding: 6px 10px; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--muted); border-radius: 4px; width: min(100%, 36ch); }
+  #topic-status.error { color: var(--link); font-weight: 700; }
   #status { min-height: 1.6em; color: var(--ink); }
   #status.error { color: var(--link); font-weight: 700; }
   figure { margin: 0; }
@@ -64,6 +67,23 @@
           subfield. This map is built from the papers themselves, not from anyone's list. Load
           your reference library, and the subfields you've never read show up as gaps.</p>
         <p id="scope" class="meta"></p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Any topic</h2>
+      <div>
+        <p>For a topic in any field, type it, or a paper's DOI, and OpenAlex gives its reading path:
+          reviews to start with, a reading order, its most-cited papers and its new ones.</p>
+        <form id="topic-form" class="controls">
+          <label for="topic">A topic or a DOI</label>
+          <input id="topic" type="search" name="topic" autocomplete="off">
+          <button class="plain" type="submit">Build a reading path</button>
+        </form>
+        <p class="meta">Your browser asks OpenAlex directly. A topic uses about 13 of the 1,000 credits
+          OpenAlex gives each connection a day for free, and a DOI about 5.</p>
+        <p id="topic-status" role="status" aria-live="polite"></p>
+        <div id="topic-path"></div>
       </div>
     </section>
 
@@ -136,9 +156,14 @@
           the two subfields' sizes so that two large ones are not near just for being large.</p>
         <p>Each subfield's reading order is the ten of its papers that its own papers cite most,
           each placed after the ones of the ten it cites, the most cited first otherwise. Its new
-          papers are asked of OpenAlex when its list is opened: the newest works citing the five
-          works the subfield cites most tellingly, kept when they place in the subfield by what
-          they cite.</p>
+          papers, and its reviews from any journal, are asked of OpenAlex when their list is opened:
+          the newest works, and the most-cited reviews, citing the five works the subfield cites most
+          tellingly, kept when they place in the subfield by what they cite.</p>
+        <p>A topic's reading path comes from one page of OpenAlex's search for it, or from a paper and
+          the works citing it. Its reading order is the ten works those cite most, ordered the same
+          way. Its reviews are those a topic's search found, then any other review it holds or that cites
+          at least two of the five works it cites most, and its new papers are the works from the last twelve months citing
+          at least two of those five. Either list puts the works citing more of the five first.</p>
         <p>The groups come from k-means on each paper's words and citations, set to <span id="groups"></span> groups.
           Every step and setting is in the <a href="https://github.com/iguigova/fieldmap#method">method</a>.
           The code was written with Claude, an AI assistant.</p>
@@ -151,8 +176,10 @@
 
 <script type="module">
 import {
-  FIELDS_URL, HEIGHT, WIDTH, afterText, citations, entries, feeText, layout, licenceText, links, mapUrl, newPapers,
-  newPapersUrl, newSince, otherFields, place, placementText, readMap, recurrence, sample, soft, tally, toLookUp, venues, waiverText,
+  FIELDS_URL, HEIGHT, WIDTH, afterText, candidates, citations, citedCounts, citersUrl, citingReviews, coreWorks, entries,
+  feeText, foundations, layout, licenceText, links, mapUrl, mostCited, newPapers, newPapersUrl, newSince, ordered,
+  otherFields, paperUrl, place, placementText, readMap, recordsUrl, recurrence, reviewsUrl, sample, searchUrl, shortId,
+  soft, steps, tally, toLookUp, topicAsk, topicCore, topicNew, topicReviews, topicSearch, venues, waiverText, yearBefore,
 } from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -162,6 +189,7 @@ const WAYS = {
 let fieldMap = null;
 let discs = null;
 let latest = 0;
+let asked = 0;
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, text) => {
@@ -181,6 +209,7 @@ const getJson = async (url) => {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 };
+const today = () => new Date().toISOString().slice(0, 10);
 const yours = (n) => (n ? `${n} of yours` : 'a gap: none of yours');
 const stability = (c) => recurrence(fieldMap, c) + (soft(fieldMap, c) ? ', soft' : '');
 
@@ -243,19 +272,20 @@ const listOf = (items, item) => {
   return list;
 };
 
-const reviews = (cluster) => (cluster.reviews.length ? listOf(cluster.reviews, starter)
-  : el('p', { class: 'meta' }, "None of the map's reviews cites mostly this subfield's work."));
+const listOr = (items, item, none) => (items.length ? listOf(items, item) : el('p', { class: 'meta' }, none));
 
-const step = (p) => {
+const reviews = (cluster) => listOr(cluster.reviews, starter, "None of the map's reviews cites mostly this subfield's work.");
+
+const step = (whose) => (p) => {
   const li = el('li');
   const builds = afterText(p.after);
   li.append(titled(p), el('span', { class: 'meta' },
-    ` (${p.year}, cited by ${papersOf(p.inside)} of this subfield${builds ? `; ${builds}` : ''})`));
+    ` (${p.year}, cited by ${papersOf(p.inside)} ${whose}${builds ? `; ${builds}` : ''})`));
   return li;
 };
 
-const reading = (cluster) => (cluster.reading.length ? listOf(cluster.reading, step)
-  : el('p', { class: 'meta' }, "None of this subfield's papers cites another of them."));
+const reading = (cluster) =>
+  listOr(cluster.reading, step('of this subfield'), "None of this subfield's papers cites another of them.");
 
 const fresh = (p) => {
   const li = el('li');
@@ -263,18 +293,16 @@ const fresh = (p) => {
   return li;
 };
 
-// Asked of OpenAlex once, the first time the list is opened.
-const newList = (cluster) => {
+// A fold whose list is asked of OpenAlex once, the first time it is opened.
+const asking = (summary, load, ...before) => {
   const box = el('div');
-  const details = fold(`New papers citing it, since ${newSince(fieldMap)}`, box);
+  const details = fold(summary, ...before, box);
   details.addEventListener('toggle', async () => {
     if (!details.open || box.dataset.state) return;
     box.dataset.state = 'asked';
     box.replaceChildren(el('p', { class: 'meta', role: 'status' }, 'Asking OpenAlex…'));
     try {
-      const found = newPapers(fieldMap, cluster, (await getJson(newPapersUrl(fieldMap, cluster))).results);
-      box.replaceChildren(found.length ? listOf(found, fresh)
-        : el('p', { class: 'meta' }, 'OpenAlex has no new paper that places in this subfield.'));
+      box.replaceChildren(await load());
     } catch (e) {
       delete box.dataset.state;
       box.replaceChildren(el('p', { class: 'meta' }, `OpenAlex could not be reached (${e.message}). Close and open this list to try again.`));
@@ -282,6 +310,15 @@ const newList = (cluster) => {
   });
   return details;
 };
+
+const newList = (cluster) => asking(`New papers citing it, since ${newSince(fieldMap)}`, async () => listOr(
+  newPapers(fieldMap, cluster, (await getJson(newPapersUrl(coreWorks(cluster), newSince(fieldMap), today()))).results),
+  fresh, 'OpenAlex has no new paper that places in this subfield.'));
+
+const reviewList = (cluster) => asking('Reviews to start with', async () => listOr(
+  citingReviews(fieldMap, cluster, (await getJson(reviewsUrl(coreWorks(cluster)))).results),
+  starter, 'OpenAlex has no other review that places in this subfield.'),
+el('h4', {}, "In the map's journals"), reviews(cluster), el('h4', {}, 'In any journal, citing its core works'));
 
 const papersOf = (n) => `${n} ${n === 1 ? 'paper' : 'papers'}`;
 
@@ -322,7 +359,7 @@ const card = (cluster, n) => {
   const years = `${fieldMap.active_since}–${fieldMap.scope.years[1]}`;
   li.append(
     el('div', { class: 'name' }, cluster.name.join(', ')), meta, nearest(cluster),
-    fold('Reviews to start with', reviews(cluster)),
+    reviewList(cluster),
     fold('Reading order', reading(cluster)),
     fold('Most-cited papers to start with', listOf(cluster.starters, starter)),
     newList(cluster),
@@ -396,6 +433,71 @@ $('bibtex').addEventListener('change', async (event) => {
 });
 $('sample').addEventListener('click', () => overlay(sample(fieldMap)));
 
+// ---- Any topic -------------------------------------------------------------
+
+const sayTopic = (text, error = false) => {
+  $('topic-status').className = error ? 'error' : '';
+  $('topic-status').textContent = text;
+};
+
+// The works a reading path is read from: a topic's search, ranked by how well
+// each matches it, or a paper and its citers, which no search has ranked.
+const found = async (ask) => {
+  if (ask.kind === 'topic') {
+    const works = (await getJson(searchUrl(ask.text))).results;
+    return { label: ask.text, works, searched: works };
+  }
+  const [seed] = (await getJson(paperUrl(ask.doi))).results;
+  if (!seed) throw new Error(`OpenAlex has no paper with the DOI ${ask.doi}`);
+  return { label: seed.title, works: [seed, ...(await getJson(citersUrl(shortId(seed.id)))).results], searched: [] };
+};
+
+const pathOf = async (works, since) => {
+  const counts = citedCounts(works);
+  const core = topicCore(counts);
+  if (!core.length) return { counts, core, records: [], citing: [], fresh: [] };
+  const [records, citing, fresh] = await Promise.all(
+    [recordsUrl(candidates(counts)), reviewsUrl(core), newPapersUrl(core, since, today())].map(getJson));
+  return { counts, core, records: records.results, citing: citing.results, fresh: fresh.results };
+};
+
+const part = (heading, content) => [el('h4', {}, heading), content];
+
+const drawPath = ({ label, works, searched }, path, since) => $('topic-path').replaceChildren(
+  el('h3', {}, label),
+  el('p', { class: 'meta' }, `Read from ${papersOf(works.length)} OpenAlex found.`),
+  ...part('Reviews to start with', listOr(topicReviews(path.core, searched, [...works, ...path.citing]), starter, 'OpenAlex has no review on it.')),
+  ...part('Reading order', listOr(steps(ordered(foundations(path.counts, path.records)), path.counts),
+    step('found for it'), 'None of the works found cites another work.')),
+  ...part('Most-cited papers', listOf(mostCited(works), starter)),
+  ...part(`New papers, since ${since}`,
+    listOr(topicNew(path.core, path.fresh), fresh, 'OpenAlex has no new paper citing two of its core works.')));
+
+// A topic asked while an earlier one is still being read replaces it.
+const readTopic = async (text) => {
+  const run = ++asked;
+  const since = yearBefore(today());
+  try {
+    const ask = topicAsk(text);
+    sayTopic('Asking OpenAlex…');
+    const source = await found(ask);
+    if (!source.works.length) throw new Error('OpenAlex found no works for it');
+    const path = await pathOf(source.works, since);
+    if (run !== asked) return;
+    sayTopic('');
+    drawPath(source, path, since);
+  } catch (e) {
+    if (run === asked) sayTopic(`No reading path: ${e.message}.`, true);
+  }
+};
+
+$('topic-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const text = $('topic').value;
+  if (text.trim()) window.history.replaceState(null, '', topicSearch(window.location.search, text));
+  readTopic(text);
+});
+
 // ---- Start ---------------------------------------------------------------
 
 const describe = (m) => {
@@ -425,6 +527,8 @@ const linkFields = (index) => {
 Promise.resolve(window.location.search).then((search) => Promise.all([getJson(mapUrl(search)), getJson(FIELDS_URL)]))
   .then(([m, index]) => {
     fieldMap = readMap(m); discs = layout(m.clusters); describe(m); linkFields(index); draw(null);
+    const topic = new URLSearchParams(window.location.search).get('topic');
+    if (topic) { $('topic').value = topic; readTopic(topic); }
   })
   .catch((e) => say(`The map could not be loaded (${e.message}). Reload the page to try again.`, true));
 </script>

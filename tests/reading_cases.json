@@ -1,0 +1,282 @@
+[
+ {
+  "name": "a paper comes after the one it cites",
+  "members": [
+   {
+    "id": "W1",
+    "year": 2015,
+    "refs": []
+   },
+   {
+    "id": "W2",
+    "year": 2016,
+    "refs": [
+     "W1"
+    ]
+   },
+   {
+    "id": "W3",
+    "year": 2017,
+    "refs": [
+     "W1",
+     "W2"
+    ]
+   }
+  ],
+  "order": [
+   "W1",
+   "W2"
+  ],
+  "inside": [
+   2,
+   1
+  ],
+  "after": [
+   [],
+   [
+    1
+   ]
+  ]
+ },
+ {
+  "name": "a loop yields its higher-ranked paper first",
+  "members": [
+   {
+    "id": "W1",
+    "year": 2016,
+    "refs": [
+     "W2"
+    ]
+   },
+   {
+    "id": "W2",
+    "year": 2017,
+    "refs": [
+     "W1"
+    ]
+   },
+   {
+    "id": "W3",
+    "year": 2018,
+    "refs": [
+     "W1",
+     "W2"
+    ]
+   }
+  ],
+  "order": [
+   "W1",
+   "W2"
+  ],
+  "inside": [
+   2,
+   2
+  ],
+  "after": [
+   [],
+   [
+    1
+   ]
+  ]
+ },
+ {
+  "name": "a less-cited paper comes first when a more-cited one builds on it",
+  "members": [
+   {
+    "id": "W1",
+    "year": 2015,
+    "refs": [
+     "W2"
+    ]
+   },
+   {
+    "id": "W2",
+    "year": 2019,
+    "refs": []
+   },
+   {
+    "id": "W3",
+    "year": 2020,
+    "refs": [
+     "W1",
+     "W2"
+    ]
+   },
+   {
+    "id": "W4",
+    "year": 2020,
+    "refs": [
+     "W1"
+    ]
+   },
+   {
+    "id": "W5",
+    "year": 2020,
+    "refs": [
+     "W1"
+    ]
+   }
+  ],
+  "order": [
+   "W2",
+   "W1"
+  ],
+  "inside": [
+   2,
+   3
+  ],
+  "after": [
+   [],
+   [
+    1
+   ]
+  ]
+ },
+ {
+  "name": "a self-citation and a repeated reference count nothing extra",
+  "members": [
+   {
+    "id": "W1",
+    "year": 2015,
+    "refs": [
+     "W1",
+     "W2",
+     "W2"
+    ]
+   },
+   {
+    "id": "W2",
+    "year": 2014,
+    "refs": []
+   }
+  ],
+  "order": [
+   "W2"
+  ],
+  "inside": [
+   1
+  ],
+  "after": [
+   []
+  ]
+ },
+ {
+  "name": "ties are broken by the earlier year, then the id, and only ten are kept",
+  "members": [
+   {
+    "id": "W101",
+    "year": 2015,
+    "refs": []
+   },
+   {
+    "id": "W102",
+    "year": 2010,
+    "refs": []
+   },
+   {
+    "id": "W103",
+    "year": 2014,
+    "refs": []
+   },
+   {
+    "id": "W104",
+    "year": 2011,
+    "refs": []
+   },
+   {
+    "id": "W105",
+    "year": 2013,
+    "refs": []
+   },
+   {
+    "id": "W106",
+    "year": 2012,
+    "refs": []
+   },
+   {
+    "id": "W107",
+    "year": 2015,
+    "refs": []
+   },
+   {
+    "id": "W108",
+    "year": 2016,
+    "refs": []
+   },
+   {
+    "id": "W109",
+    "year": 2009,
+    "refs": []
+   },
+   {
+    "id": "W110",
+    "year": 2017,
+    "refs": []
+   },
+   {
+    "id": "W111",
+    "year": 2018,
+    "refs": []
+   },
+   {
+    "id": "W112",
+    "year": 2008,
+    "refs": []
+   },
+   {
+    "id": "W200",
+    "year": 2020,
+    "refs": [
+     "W101",
+     "W102",
+     "W103",
+     "W104",
+     "W105",
+     "W106",
+     "W107",
+     "W108",
+     "W109",
+     "W110",
+     "W111",
+     "W112"
+    ]
+   }
+  ],
+  "order": [
+   "W112",
+   "W109",
+   "W102",
+   "W104",
+   "W106",
+   "W105",
+   "W103",
+   "W101",
+   "W107",
+   "W108"
+  ],
+  "inside": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "after": [
+   [],
+   [],
+   [],
+   [],
+   [],
+   [],
+   [],
+   [],
+   [],
+   []
+  ]
+ }
+]

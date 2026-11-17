@@ -11,12 +11,22 @@ const LOOKUP_PAGE = 200;
 const WORD = /[\p{L}\p{N}_]{2,}/gu;
 // A DOI holding a filter separator cannot be looked up.
 const SEPARATOR = /[,|]/;
-// New papers: those citing a subfield's most telling cited works, newest
-// first, kept when they place back in it. Five works keep the filter under
-// OpenAlex's keyless limit on OR operators.
-const NEW_SOURCES = 5;
-const NEW_FETCHED = 50;
-const NEW_SHOWN = 5;
+// Works citing a set's core works: new papers, newest first, and reviews,
+// most cited first. Five core works keep the filter under OpenAlex's keyless
+// limit on OR operators.
+const CORE = 5;
+const ASKED = 50;
+const SHOWN = 5;
+// A topic's search is looser than a subfield's profile, so a work citing it
+// is kept when it cites at least two of its core works.
+const ON_TOPIC = 2;
+const WORK_FIELDS = 'id,doi,title,type,publication_year,publication_date,cited_by_count,referenced_works';
+// A topic: one page of OpenAlex's search, and its reading order's ten works,
+// ranked among every work tied with the tenth, up to one filter's worth.
+const TOPIC_PAGE = 200;
+const READING = 10;
+const RANKED = 50;
+const DOI_TEXT = /^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:\s*)?(10\.\d{4,9}\/\S+)$/i;
 
 export const WIDTH = 1000;
 export const HEIGHT = 720;
@@ -134,24 +144,146 @@ export const tally = (placed) => placed.reduce((counts, p) => {
   return counts;
 }, {});
 
-// ---- New papers: published after the map, placed in a subfield ---------
+// ---- Citing works: new papers and reviews that cite a set's core works ---
 
 export const newSince = (fieldMap) => `${fieldMap.scope.years[1] + 1}-01-01`;
 
-export const newPapersUrl = (fieldMap, cluster) => {
-  const sources = Object.keys(cluster.refs).slice(0, NEW_SOURCES).join('|');
-  const filter = `cites:${sources},from_publication_date:${newSince(fieldMap)}`;
-  return `${OPENALEX}?filter=${encodeURIComponent(filter)}&sort=publication_date:desc` +
-    `&per_page=${NEW_FETCHED}&select=doi,title,publication_date,referenced_works`;
+// A subfield's core works: the five it cites most tellingly.
+export const coreWorks = (cluster) => Object.keys(cluster.refs).slice(0, CORE);
+
+const citingUrl = (core, filter, sort) =>
+  `${OPENALEX}?filter=${encodeURIComponent(`cites:${core.join('|')},${filter}`)}&sort=${sort}` +
+  `&per_page=${ASKED}&select=${WORK_FIELDS}`;
+
+export const newPapersUrl = (core, since, until) =>
+  citingUrl(core, `from_publication_date:${since},to_publication_date:${until}`, 'publication_date:desc');
+
+export const reviewsUrl = (core) => citingUrl(core, 'type:review', 'cited_by_count:desc');
+
+const dated = (w) => ({ doi: cleanDoi(w.doi), title: w.title, date: w.publication_date });
+
+const cited = (w) => ({ doi: cleanDoi(w.doi), title: w.title, year: w.publication_year, cites: w.cited_by_count });
+
+const placesIn = (fieldMap, cluster) => (w) => byCitations(fieldMap, w.referenced_works.map(shortId)) === cluster.id;
+
+// The new works OpenAlex returned that place in the cluster by what they cite.
+export const newPapers = (fieldMap, cluster, works) =>
+  works.filter(placesIn(fieldMap, cluster)).slice(0, SHOWN).map(dated);
+
+// The reviews OpenAlex returned that place in the cluster, less the map's own.
+export const citingReviews = (fieldMap, cluster, works) => {
+  const known = new Set(cluster.reviews.map((r) => r.doi));
+  return works.filter(placesIn(fieldMap, cluster)).map(cited)
+    .filter((r) => !(r.doi && known.has(r.doi))).slice(0, SHOWN);
 };
 
-// The works OpenAlex returned that place in the cluster by what they cite.
-export const newPapers = (fieldMap, cluster, works) => works
-  .filter((w) => byCitations(fieldMap, w.referenced_works.map(shortId)) === cluster.id)
-  .slice(0, NEW_SHOWN)
-  .map((w) => ({ doi: cleanDoi(w.doi), title: w.title, date: w.publication_date }));
+// ---- A topic: any topic or paper, read from OpenAlex in the browser ------
+
+// What the reader typed: a paper's DOI, or a topic to search for.
+export const topicAsk = (text) => {
+  const typed = text.trim();
+  if (!typed) throw new Error('type a topic or a DOI');
+  const doi = typed.match(DOI_TEXT);
+  return doi ? { kind: 'paper', doi: cleanDoi(doi[1]) } : { kind: 'topic', text: typed };
+};
+
+const worksUrl = (filter, extra = '') =>
+  `${OPENALEX}?filter=${encodeURIComponent(filter)}${extra}&per_page=${TOPIC_PAGE}&select=${WORK_FIELDS}`;
+
+export const searchUrl = (text) => `${worksUrl('type:article|review')}&search=${encodeURIComponent(text)}`;
+
+export const paperUrl = (doi) => worksUrl(`doi:${doi}`);
+
+export const citersUrl = (id) => worksUrl(`cites:${id}`, '&sort=cited_by_count:desc');
+
+export const recordsUrl = (ids) => worksUrl(`openalex:${ids.join('|')}`);
+
+// How many of the works cite each work, each work counted once per citer.
+export const citedCounts = (works) => works.reduce((counts, w) => {
+  const own = shortId(w.id);
+  new Set(w.referenced_works.map(shortId)).forEach((r) => {
+    if (r !== own) counts.set(r, (counts.get(r) ?? 0) + 1);
+  });
+  return counts;
+}, new Map());
+
+const byCount = (counts) => [...counts.keys()]
+  .toSorted((a, b) => counts.get(b) - counts.get(a) || (a < b ? -1 : 1)); // mutation: equivalent — a and b are distinct Map keys, so a <= b and a < b agree
+
+// The topic's core works: the five its works cite most.
+export const topicCore = (counts) => byCount(counts).slice(0, CORE);
+
+// The works to rank for the reading order: the ten cited most, with every
+// work tied with the tenth, since a tie is broken by the year a lookup gives.
+export const candidates = (counts) => {
+  const ids = byCount(counts);
+  const floor = counts.get(ids[READING - 1]) ?? 0;
+  return ids.filter((id, i) => i < READING || counts.get(id) === floor).slice(0, RANKED);
+};
+
+const rank = (counts) => (a, b) => counts.get(b.id) - counts.get(a.id) || a.year - b.year || (a.id < b.id ? -1 : 1); // mutation: equivalent — OpenAlex returns each record once, so two ids never tie
+
+const record = (w) => ({
+  id: shortId(w.id), doi: cleanDoi(w.doi), title: w.title, year: w.publication_year, refs: w.referenced_works.map(shortId),
+});
+
+// The ten most cited, by count, then the earlier year, then the id.
+export const foundations = (counts, works) => works.map(record).toSorted(rank(counts)).slice(0, READING);
 
 // ---- Reading order: each paper after the earlier ones it builds on -------
+
+const waits = (p, left) => left.some((q) => q.id !== p.id && p.refs.includes(q.id));
+
+// A loop of papers citing each other yields its highest-ranked paper first.
+export const ordered = (left) => {
+  if (!left.length) return [];
+  const next = left.find((p) => !waits(p, left)) ?? left[0];
+  return [next, ...ordered(left.filter((p) => p !== next))];
+};
+
+// Each paper in order, with how many cite it and the earlier steps it cites.
+export const steps = (order, counts) => order.map((p, k) => ({
+  title: p.title, doi: p.doi, year: p.year, inside: counts.get(p.id),
+  after: order.slice(0, k).flatMap((q, i) => (p.refs.includes(q.id) ? [i + 1] : [])),
+}));
+
+const byCites = (a, b) => b.cited_by_count - a.cited_by_count;
+
+// The most-cited works of a topic, as a card lists them.
+export const mostCited = (works) => works.toSorted(byCites).slice(0, SHOWN).map(cited);
+
+const coreCited = (core) => (w) => w.referenced_works.map(shortId).filter((r) => core.includes(r)).length;
+
+// The works citing at least two core works, those citing more first.
+const onTopic = (core, works) => {
+  const count = coreCited(core);
+  return works.filter((w) => count(w) >= ON_TOPIC).toSorted((a, b) => count(b) - count(a));
+};
+
+const isReview = (w) => w.type === 'review';
+
+// A topic's reviews: those its search found, as it ranked them, then any
+// others it holds or that cite its core works, by how many core works they
+// cite and then by how often they are cited.
+export const topicReviews = (core, searched, others) => {
+  const reviews = [...searched.filter(isReview), ...onTopic(core, others.filter(isReview).toSorted(byCites))];
+  return [...new Map(reviews.map((w) => [shortId(w.id), w])).values()].slice(0, SHOWN).map(cited);
+};
+
+// A topic's new papers: those citing its core works, by how many, then newest.
+export const topicNew = (core, works) => onTopic(core, works).slice(0, SHOWN).map(dated);
+
+// The page address that names a topic, keeping the map it shows.
+export const topicSearch = (search, text) => {
+  const params = new URLSearchParams(search);
+  params.set('topic', text.trim());
+  return `?${params}`;
+};
+
+// New papers on a topic: those from the last twelve months.
+export const yearBefore = (day) => `${Number(day.slice(0, 4)) - 1}${day.slice(4)}`;
+
+// ---- Reading order, as the page words it --------------------------------
 
 const series = (items) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
   : `${items[0]}`);

@@ -3,7 +3,8 @@
 A map of a research field that shows which of its subfields a reading
 list covers and which it misses, what to read first in each, who works
 in each, which subfields each one is closest to, and which journals each
-publishes in and what they charge. Three fields are mapped:
+publishes in and what they charge. For a topic in any field, it gives a
+reading path instead. Three fields are mapped:
 
 - **[Biostatistics →](https://iguigova.github.io/fieldmap/)**
 - **[Epidemiology →](https://iguigova.github.io/fieldmap/?map=epidemiology)**
@@ -34,7 +35,9 @@ subfields. Last, the theme switch turns the page dark.](docs/demo.gif)
    - **Line:** joins a subfield to one of the three it cites and is cited
      by most. Point at or tab to a circle to light up its three.
 4. Open a gap in the *Gaps* list below the map. *Reviews to start with*
-   lists the five most-cited reviews placed in that subfield. *Reading
+   lists the five most-cited reviews from the map's journals placed in
+   that subfield, then asks OpenAlex for up to five more from any
+   journal. *Reading
    order* lists the ten papers its own papers cite most, each after the
    ones of the ten it builds on. *Most-cited papers to start with* lists
    the five papers from it cited most often, and *New papers citing it*
@@ -53,8 +56,51 @@ subfields. Last, the theme switch turns the page dark.](docs/demo.gif)
 
 The file is read in the browser. Only the DOIs of papers that aren't on the
 map leave it: they are sent to [OpenAlex](https://openalex.org) to look up
-what those papers cite. Opening *New papers citing it* asks OpenAlex too,
-with the works that subfield cites, and sends nothing from the file.
+what those papers cite. Opening *Reviews to start with* or *New papers
+citing it* asks OpenAlex too, with the works that subfield cites, and
+sends nothing from the file.
+
+For a topic outside the three fields, type it, or a paper's DOI, under
+*Any topic* and choose *Build a reading path*. The page asks OpenAlex
+for the works on it and lists its reviews to start with, a reading order,
+its most-cited papers and its new papers from the last twelve months. The
+address then names the topic, as in
+[`?topic=missing data imputation`](https://iguigova.github.io/fieldmap/?topic=missing%20data%20imputation),
+so a reading path can be shared as a link.
+
+## A topic's reading path
+
+The browser asks OpenAlex directly, from the reader's connection, so a
+reading path costs nothing to host. OpenAlex gives each connection 1,000
+free credits a day: a search costs 10 and any other request 1, so a topic
+takes 13 and a DOI 5.
+
+- **Works:** one page of 200 from OpenAlex's search for the topic,
+  articles and reviews, in the order it ranks them; for a DOI, the paper
+  and the 200 works citing it that are cited most.
+- **Core works:** the five works those cite most.
+- **Reading order:** the ten works they cite most, from any year, ordered
+  as a subfield's reading order is. `tests/reading_cases.json` holds cases
+  both the pipeline and the page must order the same way.
+- **Reviews:** for a topic, the reviews its search found, in its order;
+  then any other review among the works, or among the 50 most-cited
+  reviews citing a core work, that cites at least two core works, those
+  citing more first and then the most cited.
+- **New papers:** the 50 newest works from the last twelve months citing
+  a core work, keeping those that cite at least two, those citing more
+  first.
+
+Citations tell which works build on a topic, not whether they are about
+it. A study that uses a method cites it as a review of the method does.
+On 2026-11-17, *missing data imputation* gave the three reviews its
+search found, then the STROBE reporting guideline and *Missing Data
+Analysis: Making It Work in the Real World*. Its new papers included a
+study of refugees' housing quality that cites at least two of its core
+works. A paper cited mainly as software gives the loosest path: for
+*mice*, the R package for multiple imputation, *Missing Data in Clinical
+Research: A Tutorial on Multiple Imputation* ranked second among five
+reviews; the other four, such as a meta-analysis of semen quality, cite
+the package without being about it.
 
 ## What the maps cover
 
@@ -113,7 +159,15 @@ with the works that subfield cites, and sends nothing from the file.
   *cure, mixture* and *recurrent, event*. Epidemiology places 1,430 of
   1,559, and every subfield gets some. Psychology methods places 97 of
   104, and 11 subfields get none. Some are systematic reviews of a
-  clinical question rather than introductions to a method.
+  clinical question rather than introductions to a method. Opening the
+  list asks OpenAlex for the 50 most-cited reviews from any journal and
+  year citing the subfield's five core works, the five it cites most
+  tellingly, and adds the first five that place in the subfield and are
+  not already listed. On 2026-11-17, psychology methods' *word, words,
+  norms, semantic, language*, which has none of the map's reviews, got
+  five, among them *Semantic memory: A review of methods, models, and
+  current challenges* and *The ubiquity of frequency effects in first
+  language acquisition*.
 - **Reading order:** the ten papers a subfield's own papers cite most,
   each placed after the ones of the ten it cites, and the most cited
   first otherwise. A loop of papers citing each other starts at its most
@@ -123,12 +177,12 @@ with the works that subfield cites, and sends nothing from the file.
   subfields hold none. The maps start in 2015, so a classic from before
   then is not in the order.
 - **New papers:** the page asks OpenAlex, when the list is opened, for
-  the 50 newest works since the map's last year that cite any of the five
-  works the subfield cites most tellingly, and shows the first five that
-  place in that subfield by what they cite. On 2026-11-17 every subfield
-  of the three maps showed five; of the works asked for, 1,466 of 2,000
-  placed back in biostatistics, 1,636 of 1,969 in epidemiology and 1,394
-  of 2,000 in psychology methods. Many apply a method rather than
+  the 50 newest works dated from the map's last year to today that cite
+  any of the subfield's five core works, and shows the first five that
+  place in that subfield by what they cite. On 2026-11-17, asked without
+  the end date, every subfield of the three maps showed five; of the
+  works asked for, 1,466 of 2,000 placed back in biostatistics, 1,636 of
+  1,969 in epidemiology and 1,394 of 2,000 in psychology methods. Many apply a method rather than
   develop it, such as a cohort study of mortality after heart-valve
   replacement under biostatistics' joint-modelling subfield.
 - **Who:** the authors, institutions and funders OpenAlex records on a
@@ -294,13 +348,13 @@ papers and one per 100 for their authors, so a field of 20,000 papers
 takes about 300.
 
 `index.html` draws the page and `fieldmap.js` holds its logic: reading
-BibTeX, placing papers and laying out the map. The page loads the site's
+BibTeX, placing papers, laying out the map and reading a topic's path. The page loads the site's
 shared `brand.css` and `brand.js` from the folder above, so serve that
 folder to run it locally and open `/fieldmap/`.
 
-Tests: `uv run pytest` for the pipeline and `npm test`
-for `fieldmap.js`, each at full line coverage. Lint: `uv run ruff check
-src tests`.
+Tests: `uv run pytest` for the pipeline, at full line coverage, and
+`npm test` for `fieldmap.js`; `npm run coverage` runs the same tests and
+fails below full line coverage. Lint: `uv run ruff check src tests`.
 
 The demo GIF: serve the folder above at `http://127.0.0.1:8765/` and run
 `docs/demo.playwright.js` through a Playwright page started in that folder.
@@ -324,7 +378,12 @@ request:
   carry.
 - **Classics in the reading order.** The works a subfield cites most
   include papers from before 2015, which the map holds only as OpenAlex
-  ids. Fetching their titles would let the reading order start with them.
+  ids. Fetching their titles would let the reading order start with them,
+  as a topic's reading order does.
+- **Subfields of a topic.** A topic's works could be grouped by the works
+  they cite, in the browser, into a small map of its own, with a card per
+  group. The three built maps would then be worked examples of what any
+  topic gives.
 - **Fresher facts.** Fees change every year. Rerunning `venues` and
   `build` refreshes them.
 

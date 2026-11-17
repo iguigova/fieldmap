@@ -3,17 +3,22 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  FIELDS_URL, HEIGHT, WIDTH, afterText, citations, cleanDoi, entries, feeText, layout, licenceText, links, lookupUrl, mapUrl, newPapers, otherFields, placementText, newPapersUrl, newSince, place,
-  readMap, recurrence, sample, shortId, shortName, soft, tally, titleTerms, toLookUp, venues, waiverText,
+  FIELDS_URL, HEIGHT, WIDTH, afterText, candidates, citations, citedCounts, citersUrl, citingReviews, cleanDoi, coreWorks, entries,
+  feeText, foundations, layout, licenceText, links, lookupUrl, mapUrl, mostCited, newPapers, newPapersUrl, newSince, ordered,
+  otherFields, paperUrl, place, placementText, readMap, recordsUrl, recurrence, reviewsUrl, sample, searchUrl, shortId, shortName,
+  soft, steps, tally, titleTerms, toLookUp, topicAsk, topicCore, topicNew, topicReviews, topicSearch, venues, waiverText, yearBefore,
 } from '../fieldmap.js';
 
 const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
 const SHIPPED = read('../data/biostatistics.json');
 const TITLE_TERMS = read('./title_terms.json');
+// Reading-order cases the pipeline's build.py passes too.
+const READING_CASES = read('./reading_cases.json');
 
 const cluster = (id, name, terms, refs = {}, size = 10, x = 0.5, y = 0.5) => ({
   id, name, terms, refs, size, x, y,
   starters: [1, 2, 3, 4].map((n) => ({ title: `${name[0]} ${n}`, doi: n === 4 ? null : `10.1/${id}${n}`, cites: n })),
+  reviews: [{ title: 'known review', doi: '10.1/known', year: 2020, cites: 9 }],
 });
 const FIELD_MAP = readMap({
   stop_words: ['a', 'of', 'model', 'data'],
@@ -177,13 +182,40 @@ test("new papers are those published after the map's last year", () => {
   assert.equal(newSince(FIELD_MAP), '2026-01-01');
 });
 
-test('new papers are asked for by the works a subfield cites most, newest first', () => {
-  const url = new URL(newPapersUrl(FIELD_MAP, FIELD_MAP.clusters[0]));
-  assert.equal(url.searchParams.get('filter'), 'cites:W1|W2,from_publication_date:2026-01-01');
-  assert.equal(url.searchParams.get('sort'), 'publication_date:desc');
-  assert.match(url.searchParams.get('select'), /referenced_works/);
+test("a subfield's core works are the five it cites most tellingly", () => {
+  assert.deepEqual(coreWorks(FIELD_MAP.clusters[0]), ['W1', 'W2']);
   const many = { refs: Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [`W${n}`, 1 / n])) };
-  assert.match(new URL(newPapersUrl(FIELD_MAP, many)).searchParams.get('filter'), /^cites:W1\|W2\|W3\|W4\|W5,/);
+  assert.deepEqual(coreWorks(many), ['W1', 'W2', 'W3', 'W4', 'W5']);
+});
+
+test('new papers are asked for by the core works they cite, newest first', () => {
+  const url = new URL(newPapersUrl(['W1', 'W2'], '2026-01-01', '2026-11-17'));
+  assert.equal(url.searchParams.get('filter'), 'cites:W1|W2,from_publication_date:2026-01-01,to_publication_date:2026-11-17');
+  assert.equal(url.searchParams.get('sort'), 'publication_date:desc');
+  assert.equal(url.searchParams.get('per_page'), '50');
+  assert.equal(url.searchParams.get('select'),
+    'id,doi,title,type,publication_year,publication_date,cited_by_count,referenced_works');
+});
+
+test('reviews are asked for by the core works they cite, most cited first', () => {
+  const url = new URL(reviewsUrl(['W1', 'W2']));
+  assert.equal(url.searchParams.get('filter'), 'cites:W1|W2,type:review');
+  assert.equal(url.searchParams.get('sort'), 'cited_by_count:desc');
+});
+
+const openalexWork = (n, refs, extra = {}) => ({
+  id: `https://openalex.org/W${n}`, doi: `https://doi.org/10.1/R${n}`, title: `work ${n}`, type: 'article',
+  publication_year: 2000 + n, publication_date: `20${10 + n}-01-01`, cited_by_count: n,
+  referenced_works: refs.map((r) => `https://openalex.org/${r}`), ...extra,
+});
+
+test("a review from any journal is kept when it places in the subfield and isn't the map's own, up to five", () => {
+  const here = [1, 2, 3, 4, 5, 6].map((n) => openalexWork(n, ['W1']));
+  const known = { ...openalexWork(7, ['W1']), doi: 'https://doi.org/10.1/KNOWN' };
+  const undoied = { ...openalexWork(8, ['W1']), doi: null };
+  const kept = citingReviews(FIELD_MAP, FIELD_MAP.clusters[0], [openalexWork(0, ['W3']), known, undoied, ...here]);
+  assert.deepEqual(kept.map((r) => r.title), ['work 8', 'work 1', 'work 2', 'work 3', 'work 4']);
+  assert.deepEqual(kept[1], { doi: '10.1/r1', title: 'work 1', year: 2001, cites: 1 });
 });
 
 test('a new paper is kept when it places in the subfield, up to five', () => {
@@ -195,6 +227,102 @@ test('a new paper is kept when it places in the subfield, up to five', () => {
   const kept = newPapers(FIELD_MAP, FIELD_MAP.clusters[0], works);
   assert.deepEqual(kept.map((p) => p.title), ['new 1', 'new 2', 'new 3', 'new 4', 'new 5']);
   assert.deepEqual(kept[0], { doi: '10.1/n1', title: 'new 1', date: '2026-11-01' });
+});
+
+for (const c of READING_CASES) {
+  test(`reading order, as the pipeline orders it: ${c.name}`, () => {
+    const works = c.members.map((m) => ({
+      id: `https://openalex.org/${m.id}`, doi: null, title: m.id, publication_year: m.year,
+      referenced_works: m.refs.map((r) => `https://openalex.org/${r}`),
+    }));
+    const counts = citedCounts(works);
+    const asked = new Set(candidates(counts));
+    const order = ordered(foundations(counts, works.filter((w) => asked.has(shortId(w.id)))));
+    assert.deepEqual(steps(order, counts).map((s) => [s.title, s.inside, s.after]),
+      c.order.map((id, i) => [id, c.inside[i], c.after[i]]));
+  });
+}
+
+test('a tie in count and year ranks the lower id first', () => {
+  const works = ['W2', 'W1'].map((id) => ({ id, doi: null, title: id, publication_year: 2015, referenced_works: [] }));
+  assert.deepEqual(foundations(new Map([['W1', 1], ['W2', 1]]), works).map((w) => w.id), ['W1', 'W2']);
+});
+
+test('a paper citing itself does not wait on itself', () => {
+  assert.deepEqual(ordered([{ id: 'A', refs: ['A'] }, { id: 'B', refs: [] }]).map((p) => p.id), ['A', 'B']);
+});
+
+test('the works ranked for a reading order are the ten cited most and every one tied with the tenth', () => {
+  const counts = new Map([...Array(12).keys()].map((n) => [`W${n}`, n < 9 ? 3 : 2]));
+  assert.deepEqual(candidates(counts), ['W0', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W10', 'W11', 'W9']);
+  counts.set('W11', 1);
+  assert.deepEqual(candidates(counts), ['W0', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W10', 'W9']);
+  const clear = new Map([...Array(12).keys()].map((n) => [`W${n}`, n < 10 ? 3 : 1]));
+  assert.equal(candidates(clear).length, 10);
+  assert.equal(candidates(new Map(Array.from({ length: 60 }, (_, n) => [`W${n}`, 1]))).length, 50);
+  assert.deepEqual(candidates(new Map([['W2', 1], ['W1', 1]])), ['W1', 'W2']);
+});
+
+test("a topic's core works are the five its works cite most, ties by id", () => {
+  const works = [openalexWork(1, ['W9', 'W8', 'W7', 'W6', 'W5', 'W4']), openalexWork(2, ['W9', 'W3'])];
+  assert.deepEqual(topicCore(citedCounts(works)), ['W9', 'W3', 'W4', 'W5', 'W6']);
+});
+
+test('a typed DOI asks about that paper, anything else is a topic', () => {
+  assert.deepEqual(topicAsk(' https://doi.org/10.1002/SIM.123 '), { kind: 'paper', doi: '10.1002/sim.123' });
+  assert.deepEqual(topicAsk('doi: 10.1234/x'), { kind: 'paper', doi: '10.1234/x' });
+  assert.deepEqual(topicAsk('10.1234/x'), { kind: 'paper', doi: '10.1234/x' });
+  assert.deepEqual(topicAsk('10.1/x'), { kind: 'topic', text: '10.1/x' });
+  assert.deepEqual(topicAsk('missing data 10.1234/x'), { kind: 'topic', text: 'missing data 10.1234/x' });
+  assert.deepEqual(topicAsk('10.1234/x and more'), { kind: 'topic', text: '10.1234/x and more' });
+  assert.deepEqual(topicAsk('http://doi.org/10.1234/x'), { kind: 'paper', doi: '10.1234/x' });
+  assert.deepEqual(topicAsk('doi:10.1234/x'), { kind: 'paper', doi: '10.1234/x' });
+  assert.deepEqual(topicAsk('  missing data  '), { kind: 'topic', text: 'missing data' });
+  assert.throws(() => topicAsk('  '), /type a topic or a DOI/);
+});
+
+test('a topic is searched among articles and reviews, a page at a time', () => {
+  const url = new URL(searchUrl('missing data & MI'));
+  assert.equal(url.searchParams.get('search'), 'missing data & MI');
+  assert.equal(url.searchParams.get('filter'), 'type:article|review');
+  assert.equal(url.searchParams.get('per_page'), '200');
+  assert.match(url.searchParams.get('select'), /referenced_works/);
+});
+
+test("a paper is looked up by its DOI, its citers most cited first, and records by their ids", () => {
+  assert.equal(new URL(paperUrl('10.1/x')).searchParams.get('filter'), 'doi:10.1/x');
+  const citers = new URL(citersUrl('W1'));
+  assert.equal(citers.searchParams.get('filter'), 'cites:W1');
+  assert.equal(citers.searchParams.get('sort'), 'cited_by_count:desc');
+  assert.equal(new URL(recordsUrl(['W1', 'W2'])).searchParams.get('filter'), 'openalex:W1|W2');
+});
+
+const CORE_WORKS = ['W91', 'W92', 'W93'];
+
+test("a topic's reviews are those its search found, then other reviews citing two core works, by how many, then most cited", () => {
+  const review = (n, refs = []) => openalexWork(n, refs, { type: 'review' });
+  const found = [review(1), openalexWork(9, []), review(3)];
+  const citing = [review(3, ['W91', 'W92']), review(2, ['W91', 'W92']), review(8, ['W91']), openalexWork(5, ['W91', 'W92', 'W93']),
+    review(4, ['W91', 'W92']), review(6, ['W91', 'W92', 'W93']), review(7, ['W92', 'W93'])];
+  assert.deepEqual(topicReviews(CORE_WORKS, found, citing).map((r) => r.title),
+    ['work 1', 'work 3', 'work 6', 'work 7', 'work 4']);
+  assert.deepEqual(mostCited([openalexWork(1, []), openalexWork(2, [])])[0], { doi: '10.1/r2', title: 'work 2', year: 2002, cites: 2 });
+  assert.equal(mostCited([1, 2, 3, 4, 5, 6].map((n) => openalexWork(n, []))).length, 5);
+});
+
+test("a topic's new papers cite two of its core works, those citing more first, up to five", () => {
+  const works = [openalexWork(1, ['W91']), ...[2, 3, 4, 5, 6].map((n) => openalexWork(n, ['W91', 'W92'])),
+    openalexWork(7, ['W91', 'W92', 'W93'])];
+  assert.deepEqual(topicNew(CORE_WORKS, works).map((p) => p.title), ['work 7', 'work 2', 'work 3', 'work 4', 'work 5']);
+  assert.equal(topicNew(CORE_WORKS, works)[0].doi, '10.1/r7');
+  const few = [openalexWork(1, ['W91']), openalexWork(2, ['W1', 'W2']), openalexWork(3, ['W91', 'W93'])];
+  assert.deepEqual(topicNew(CORE_WORKS, few).map((p) => p.title), ['work 3']);
+  assert.equal(yearBefore('2026-11-17'), '2025-11-17');
+});
+
+test('a topic is named in the page address beside the map it shows', () => {
+  assert.equal(topicSearch('?map=epidemiology', ' missing data '), '?map=epidemiology&topic=missing+data');
+  assert.equal(topicSearch('?topic=old', 'new'), '?topic=new');
 });
 
 test('a reading-order entry names the earlier entries it builds on', () => {
