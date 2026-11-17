@@ -31,9 +31,12 @@ Last, the theme switch turns the page dark.](docs/demo.gif)
    - **Line:** joins a subfield to one of the three it cites and is cited
      by most. Point at or tab to a circle to light up its three.
 4. Open a gap in the *Gaps* list below the map. *Reviews to start with*
-   lists the five most-cited reviews placed in that subfield, and
-   *Most-cited papers to start with* the five papers from it cited most
-   often. *Who publishes here* lists its five most frequent authors and
+   lists the five most-cited reviews placed in that subfield. *Reading
+   order* lists the ten papers its own papers cite most, each after the
+   ones of the ten it builds on. *Most-cited papers to start with* lists
+   the five papers from it cited most often, and *New papers citing it*
+   the newest papers since the map's last year that build on its work.
+   *Who publishes here* lists its five most frequent authors and
    institutions from 2021 to 2025, and *Who funds it* its five most
    frequent funders. *Nearest by citation* links its three closest
    subfields.
@@ -47,7 +50,8 @@ Last, the theme switch turns the page dark.](docs/demo.gif)
 
 The file is read in the browser. Only the DOIs of papers that aren't on the
 map leave it: they are sent to [OpenAlex](https://openalex.org) to look up
-what those papers cite.
+what those papers cite. Opening *New papers citing it* asks OpenAlex too,
+with the works that subfield cites, and sends nothing from the file.
 
 ## What the map covers
 
@@ -77,6 +81,21 @@ what those papers cite.
   question rather than introductions to a method. In the soft subfield
   *regression, case, sampling* they run from spline software in R to
   kernel estimates of spatial risk.
+- **Reading order:** the ten papers a subfield's own papers cite most,
+  each placed after the ones of the ten it cites, and the most cited
+  first otherwise. A loop of papers citing each other starts at its most
+  cited. Each says which earlier entries it builds on; a subfield's ten
+  hold a median of three that build on another, and two subfields hold
+  none. The map starts in 2015, so a classic from before then is not in
+  the order.
+- **New papers:** the page asks OpenAlex, when the list is opened, for
+  the 50 newest works since the map's last year that cite any of the five
+  works the subfield cites most tellingly, and shows the first five that
+  place in that subfield by what they cite. On 2026-11-17, 1,495 of the
+  2,000 works asked for across the 40 subfields placed back, and every
+  subfield showed five. Many apply a method rather than develop it, such
+  as a cohort study of mortality after heart-valve replacement under the
+  joint-modelling subfield.
 - **Who:** the authors, institutions and funders OpenAlex records on a
   subfield's papers from 2021 to 2025. Of those 5,409 papers, 99% name an
   institution and 76% a funder. OpenAlex sometimes credits a paper to the
@@ -127,7 +146,9 @@ setting.
    citations in OpenAlex, and its five most-cited reviews. A review is
    placed in the group whose cited works it cites most, scored as the
    page scores a paper's citations, and left unplaced when it cites none
-   of them.
+   of them. The reading order is the group's ten papers cited most by its
+   own papers, ordered so each follows the ones of the ten it cites; when
+   none is free of the rest, the most cited goes next.
 9. **Reruns.** k-means runs four more times on the same vectors, with
    seeds 1 to 4. A group is found again in a rerun when a group there
    shares at least half of the papers in either (Jaccard ≥ 0.5). Each
@@ -177,10 +198,12 @@ The two found in one are *brain, network, networks* and the largest,
 optimum: from 30 to 50 the seeds agree about equally, and every run
 passes the check.
 
-The same steps map another field by changing the journals and years in
-`src/fieldmap/scope.py`, the subfields `src/fieldmap/check.py` tests,
-and the words every methods abstract uses, `BOILERPLATE` in
-`src/fieldmap/build.py`.
+The same steps map another field by changing the field's name, journals,
+years and measured notes in `src/fieldmap/scope.py`, the subfields
+`src/fieldmap/check.py` tests, and the words every methods abstract
+uses, `BOILERPLATE` in `src/fieldmap/build.py`. The page takes the
+field's name, journals and notes from the map it loads: `data/map.json`,
+or `data/<name>.json` for `?map=<name>` in the page's address.
 
 The code was written with Claude, an AI assistant. Every number on the
 map and in this README comes from running it.
@@ -224,19 +247,15 @@ request:
   journal added to `JOURNALS` in `src/fieldmap/scope.py` joins both the
   map and the venues on the next build.
 - **Another field.** The same steps map another field; *Stability* above
-  names the three settings that change.
+  names what changes.
 - **Licence checks.** A paper reusing a figure or table under one
   Creative Commons licence can only go to a venue whose licence is
   compatible with it. The venues' licences are already on the map; the
   check needs the licence of each reused item, which BibTeX does not
   carry.
-- **Reading order.** Within a subfield, a paper is read after the
-  papers it cites. 11,320 of the 19,024 citations between the map's
-  papers stay inside one subfield, and every subfield holds at least 55
-  of them.
-- **New papers.** The map is built from a snapshot. A link per subfield
-  to OpenAlex's newest papers citing its starters would show what came
-  after it.
+- **Classics in the reading order.** The works a subfield cites most
+  include papers from before 2015, which the map holds only as OpenAlex
+  ids. Fetching their titles would let the reading order start with them.
 - **Fresher facts.** Fees change every year. Rerunning `venues` and
   `build` refreshes them.
 

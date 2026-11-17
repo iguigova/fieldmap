@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  HEIGHT, WIDTH, citations, cleanDoi, entries, feeText, layout, licenceText, links, lookupUrl, place, readMap,
-  recurrence, sample, shortId, shortName, soft, tally, titleTerms, toLookUp, venues, waiverText,
+  HEIGHT, WIDTH, afterText, citations, cleanDoi, entries, feeText, layout, licenceText, links, lookupUrl, mapUrl, newPapers, newPapersUrl, newSince, place,
+  readMap, recurrence, sample, shortId, shortName, soft, tally, titleTerms, toLookUp, venues, waiverText,
 } from '../fieldmap.js';
 
 const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
@@ -23,6 +23,7 @@ const FIELD_MAP = readMap({
     cluster(1, ['spatial', 'disease'], { spatial: 1, disease: 0.5 }, { W3: 1 }, 20),
   ],
   dois: { '10.1/abc': 1 },
+  scope: { years: [2015, 2025] },
 });
 
 test('a DOI is lowercased and loses its resolver', () => {
@@ -170,4 +171,42 @@ test('every shipped subfield\'s journals are shipped venues, and add up to its s
     assert.ok(c.journals.every((j) => j.id in SHIPPED.venues.journals));
     assert.equal(c.journals.reduce((n, j) => n + j.papers, 0), c.size);
   });
+});
+
+test("new papers are those published after the map's last year", () => {
+  assert.equal(newSince(FIELD_MAP), '2026-01-01');
+});
+
+test('new papers are asked for by the works a subfield cites most, newest first', () => {
+  const url = new URL(newPapersUrl(FIELD_MAP, FIELD_MAP.clusters[0]));
+  assert.equal(url.searchParams.get('filter'), 'cites:W1|W2,from_publication_date:2026-01-01');
+  assert.equal(url.searchParams.get('sort'), 'publication_date:desc');
+  assert.match(url.searchParams.get('select'), /referenced_works/);
+  const many = { refs: Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [`W${n}`, 1 / n])) };
+  assert.match(new URL(newPapersUrl(FIELD_MAP, many)).searchParams.get('filter'), /^cites:W1\|W2\|W3\|W4\|W5,/);
+});
+
+test('a new paper is kept when it places in the subfield, up to five', () => {
+  const work = (n, refs) => ({
+    doi: `https://doi.org/10.1/N${n}`, title: `new ${n}`, publication_date: '2026-11-0' + n, referenced_works: refs,
+  });
+  const here = [1, 2, 3, 4, 5, 6].map((n) => work(n, ['https://openalex.org/W1']));
+  const works = [work(0, ['https://openalex.org/W3']), work(9, []), ...here];
+  const kept = newPapers(FIELD_MAP, FIELD_MAP.clusters[0], works);
+  assert.deepEqual(kept.map((p) => p.title), ['new 1', 'new 2', 'new 3', 'new 4', 'new 5']);
+  assert.deepEqual(kept[0], { doi: '10.1/n1', title: 'new 1', date: '2026-11-01' });
+});
+
+test('a reading-order entry names the earlier entries it builds on', () => {
+  assert.equal(afterText([]), '');
+  assert.equal(afterText([2]), 'builds on 2');
+  assert.equal(afterText([1, 2]), 'builds on 1 and 2');
+  assert.equal(afterText([1, 3, 4]), 'builds on 1, 3 and 4');
+});
+
+test('a page address names the map it shows', () => {
+  assert.equal(mapUrl(''), 'data/map.json');
+  assert.equal(mapUrl('?map=ecology'), 'data/ecology.json');
+  assert.throws(() => mapUrl('?map=../x'), /no map is named "..\/x"/);
+  assert.throws(() => mapUrl('?map=ecology/../x'), /no map is named/);
 });

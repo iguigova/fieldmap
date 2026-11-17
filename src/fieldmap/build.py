@@ -85,6 +85,8 @@ ACTIVE_YEARS = 5
 WHO_KINDS = ("authors", "institutions", "funders")
 TOP_WHO = 5
 NEIGHBOURS = 3
+# A subfield's reading order: its papers its own papers cite most.
+READING = 10
 
 
 @dataclass(frozen=True)
@@ -308,6 +310,54 @@ def reviewed(clusters: list, reviews: list[Paper], count: int) -> list:
     ]
 
 
+# ---- Reading order: what a subfield builds on, each after its sources ----
+
+
+def inside_cites(members: list[Paper]) -> Counter:
+    ids = {p.id for p in members}
+    return Counter(
+        r for p in members for r in set(p.refs) if r in ids and r != p.id
+    )
+
+
+def foundations(members: list[Paper], counts: Counter) -> list[Paper]:
+    cited = [p for p in members if counts[p.id]]
+    ranked = sorted(cited, key=lambda p: (-counts[p.id], p.year, p.id))
+    return ranked[:READING]
+
+
+def waits(p: Paper, left: list[Paper]) -> bool:
+    return any(q.id in p.refs for q in left if q.id != p.id)
+
+
+# A loop of papers citing each other yields its highest-ranked paper first.
+def ordered(ranked: list[Paper]) -> list[Paper]:
+    left = list(ranked)
+    order = []
+    while left:
+        ready = [p for p in left if not waits(p, left)] or left
+        order.append(ready[0])
+        left.remove(ready[0])
+    return order
+
+
+def reading(members: list[Paper]) -> list[dict]:
+    counts = inside_cites(members)
+    order = ordered(foundations(members, counts))
+    return [
+        {
+            "title": p.title,
+            "doi": p.doi,
+            "year": p.year,
+            "inside": counts[p.id],
+            "after": [
+                i + 1 for i, q in enumerate(order[:k]) if q.id in p.refs
+            ],
+        }
+        for k, p in enumerate(order)
+    ]
+
+
 # ---- The map -------------------------------------------------------------
 
 
@@ -393,6 +443,7 @@ def field_map(
                 "who": who(members[c], by_id, since),
                 "near": near[c],
                 "reviews": starters(by_cluster[c]),
+                "reading": reading(members[c]),
             }
             for c in range(count)
         ],

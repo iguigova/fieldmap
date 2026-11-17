@@ -93,6 +93,8 @@ def test_build_writes_the_map_with_its_scope_and_venues(
     built = json.loads(out.read_text())
     assert built["papers"] == 36
     assert built["scope"]["years"] == list(scope.YEARS)
+    assert built["scope"]["field"] == scope.FIELD
+    assert built["scope"]["notes"] == scope.NOTES
     assert built["venues"]["journals"]["S1"]["name"] == "Hybrid"
 
 

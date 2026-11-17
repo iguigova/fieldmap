@@ -66,6 +66,8 @@ def build(
     )
     built["venues"] = venues(json.loads(fetched.read_text()))
     built["scope"] = {
+        "field": scope.FIELD,
+        "notes": scope.NOTES,
         "journals": list(scope.JOURNALS.values()),
         "years": list(scope.YEARS),
         "built": date.today().isoformat(),

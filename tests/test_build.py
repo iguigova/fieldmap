@@ -181,3 +181,41 @@ def test_by_citations_picks_the_first_highest_score():
 
 def test_a_review_needs_a_profile_term_to_score():
     assert build.by_citations([{ref("x", 0): 0.0}], (ref("x", 0),)) is None
+
+
+def test_reading_order_breaks_a_loop_at_its_highest_ranked_paper(works):
+    field_map = built(works)
+    spatial = field_map["clusters"][cluster_of(field_map, "spatial")]
+    assert [
+        (r["title"], r["inside"], r["after"]) for r in spatial["reading"]
+    ] == [
+        ("spatial paper 0", 7, []),
+        ("spatial paper 2", 7, [1]),
+        ("spatial paper 1", 7, [2]),
+    ]
+
+
+def test_reading_order_puts_each_paper_after_those_it_cites():
+    corpus = [
+        paper("a", ("b",)),
+        paper("b", ("c",)),
+        paper("c", ()),
+        paper("d", ("a", "a")),
+        paper("e", ("a", "b")),
+    ]
+    assert [(r["title"], r["after"]) for r in build.reading(corpus)] == [
+        ("c", []),
+        ("b", [1]),
+        ("a", [2]),
+    ]
+
+
+def test_reading_order_holds_only_papers_its_subfield_cites():
+    corpus = [paper("a", ("x",)), paper("b", ("x",)), paper("x", ())]
+    assert [r["title"] for r in build.reading(corpus)] == ["x"]
+
+
+def test_reading_order_stops_at_its_length():
+    count = build.READING + 2
+    corpus = [paper(f"p{n:02}", (f"p{n + 1:02}",)) for n in range(count)]
+    assert len(build.reading(corpus)) == build.READING

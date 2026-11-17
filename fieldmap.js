@@ -11,6 +11,12 @@ const LOOKUP_PAGE = 200;
 const WORD = /[\p{L}\p{N}_]{2,}/gu;
 // A DOI holding a filter separator cannot be looked up.
 const SEPARATOR = /[,|]/;
+// New papers: those citing a subfield's most telling cited works, newest
+// first, kept when they place back in it. Five works keep the filter under
+// OpenAlex's keyless limit on OR operators.
+const NEW_SOURCES = 5;
+const NEW_FETCHED = 50;
+const NEW_SHOWN = 5;
 
 export const WIDTH = 1000;
 export const HEIGHT = 720;
@@ -75,6 +81,15 @@ export const citations = async (getJson, dois) => {
 
 // ---- Placing a paper: by DOI, else its citations, else its title words ---
 
+// The map a page address names, ?map=<name> for data/<name>.json, else the
+// default; a name is lowercase letters, digits and hyphens.
+export const mapUrl = (search) => {
+  const name = new URLSearchParams(search).get('map');
+  if (name === null) return 'data/map.json';
+  if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`no map is named "${name}"`);
+  return `data/${name}.json`;
+};
+
 export const readMap = (json) => ({ ...json, stopWords: new Set(json.stop_words) });
 
 export const titleTerms = (stopWords, title) => {
@@ -106,6 +121,30 @@ export const tally = (placed) => placed.reduce((counts, p) => {
   if (p.cluster !== null) counts[p.cluster] = (counts[p.cluster] ?? 0) + 1;
   return counts;
 }, {});
+
+// ---- New papers: published after the map, placed in a subfield ---------
+
+export const newSince = (fieldMap) => `${fieldMap.scope.years[1] + 1}-01-01`;
+
+export const newPapersUrl = (fieldMap, cluster) => {
+  const sources = Object.keys(cluster.refs).slice(0, NEW_SOURCES).join('|');
+  const filter = `cites:${sources},from_publication_date:${newSince(fieldMap)}`;
+  return `${OPENALEX}?filter=${encodeURIComponent(filter)}&sort=publication_date:desc` +
+    `&per_page=${NEW_FETCHED}&select=doi,title,publication_date,referenced_works`;
+};
+
+// The works OpenAlex returned that place in the cluster by what they cite.
+export const newPapers = (fieldMap, cluster, works) => works
+  .filter((w) => byCitations(fieldMap, w.referenced_works.map(shortId)) === cluster.id)
+  .slice(0, NEW_SHOWN)
+  .map((w) => ({ doi: cleanDoi(w.doi), title: w.title, date: w.publication_date }));
+
+// ---- Reading order: each paper after the earlier ones it builds on -------
+
+const series = (items) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
+  : `${items[0]}`);
+
+export const afterText = (after) => (after.length ? `builds on ${series(after)}` : '');
 
 // ---- Stability: how often a subfield came back when the clustering reran --
 

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fieldmap — biostatistics</title>
-<meta name="description" content="A map of biostatistics' subfields, built from 11,000 papers, with your reading list laid over it so the subfields you have not read show up.">
+<title>Fieldmap</title>
+<meta name="description" content="A map of a research field's subfields, built from its papers, with your reading list laid over it so the subfields you have not read show up.">
 <link rel="stylesheet" href="../brand.css">
 <script src="../brand.js"></script>
 <style>
@@ -50,7 +50,7 @@
 <div class="wrap">
   <header>
     <div>
-      <h1>Fieldmap: biostatistics</h1>
+      <h1 id="title">Fieldmap</h1>
       <p class="tag">What the field holds, and which parts of it you haven't read yet.</p>
     </div>
   </header>
@@ -111,25 +111,18 @@
     <section>
       <h2>How it's made</h2>
       <div>
-        <p>Every article from eight general biostatistics journals, from OpenAlex. Papers are
+        <p><span id="source"></span> Papers are
           grouped by the words in their titles and abstracts and by the papers they cite. Each
           group is named by the words that set it apart, so the names are rough.</p>
         <p>A paper in your file is matched by its DOI when it's on the map. Otherwise it's placed by
           the papers it cites, looked up on OpenAlex, and failing that by its title words. Both are
-          rough. Tested on a fifth of the map's own papers, held back while the rest built the
-          subfields, citations picked the paper's own subfield two times in three, and title words
-          about half the time.</p>
+          rough. <span id="note-placement"></span></p>
         <p>Each subfield says how many of four reruns found it again. A rerun clusters the same
           papers from a different random start, and finds a subfield again when one of its groups
           shares at least half of the papers in either. A subfield found again in at most half the
           reruns is soft: its edges depend on the start more than on the papers.</p>
         <p>Each subfield names its five most frequent authors, institutions and funders on its
-          papers from the map's last five years, as OpenAlex records them. OpenAlex sometimes
-          credits a paper to the wrong person of the same name: of 58 recent papers it credits to
-          Yale's Fan Li, one is by Duke's Fan Li, and one by both credits both to Yale's. It names a
-          funder and its parts separately: of 581 recent papers that name the National Cancer
-          Institute, 397 also name the National Institutes of Health, and only those count for
-          both.</p>
+          papers from the map's last five years, as OpenAlex records them. <span id="note-who"></span></p>
         <p>Each subfield lists the map's journals its papers appeared in, most first. For each
           journal, OpenAlex gives its fee for the latest year it has, whether it's fully open access
           and whether it's in MEDLINE. For a journal that isn't fully open access, the fee is the
@@ -139,7 +132,12 @@
           fact links to where it came from.</p>
         <p>A subfield's nearest are the three whose papers it cites and is cited by most, scaled by
           the two subfields' sizes so that two large ones are not near just for being large.</p>
-        <p>The groups come from k-means on each paper's words and citations, set to 40 groups.
+        <p>Each subfield's reading order is the ten of its papers that its own papers cite most,
+          each placed after the ones of the ten it cites, the most cited first otherwise. Its new
+          papers are asked of OpenAlex when its list is opened: the newest works citing the five
+          works the subfield cites most tellingly, kept when they place in the subfield by what
+          they cite.</p>
+        <p>The groups come from k-means on each paper's words and citations, set to <span id="groups"></span> groups.
           Every step and setting is in the <a href="https://github.com/iguigova/fieldmap#method">method</a>.
           The code was written with Claude, an AI assistant.</p>
       </div>
@@ -151,8 +149,8 @@
 
 <script type="module">
 import {
-  HEIGHT, WIDTH, citations, entries, feeText, layout, licenceText, links, place, readMap, recurrence, sample, soft,
-  tally, toLookUp, venues, waiverText,
+  HEIGHT, WIDTH, afterText, citations, entries, feeText, layout, licenceText, links, mapUrl, newPapers, newPapersUrl,
+  newSince, place, readMap, recurrence, sample, soft, tally, toLookUp, venues, waiverText,
 } from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -223,10 +221,11 @@ const drawMap = (counts) => {
 
 // ---- The lists -----------------------------------------------------------
 
+const titled = (p) => (p.doi ? el('a', { href: `https://doi.org/${p.doi}` }, p.title) : el('span', {}, p.title));
+
 const starter = (p) => {
   const li = el('li');
-  const title = p.doi ? el('a', { href: `https://doi.org/${p.doi}` }, p.title) : el('span', {}, p.title);
-  li.append(title, el('span', { class: 'meta' }, ` (${p.year}, cited ${p.cites} times)`));
+  li.append(titled(p), el('span', { class: 'meta' }, ` (${p.year}, cited ${p.cites} times)`));
   return li;
 };
 
@@ -244,6 +243,43 @@ const listOf = (items, item) => {
 
 const reviews = (cluster) => (cluster.reviews.length ? listOf(cluster.reviews, starter)
   : el('p', { class: 'meta' }, "None of the map's reviews cites mostly this subfield's work."));
+
+const step = (p) => {
+  const li = el('li');
+  const builds = afterText(p.after);
+  li.append(titled(p), el('span', { class: 'meta' },
+    ` (${p.year}, cited by ${papersOf(p.inside)} of this subfield${builds ? `; ${builds}` : ''})`));
+  return li;
+};
+
+const reading = (cluster) => (cluster.reading.length ? listOf(cluster.reading, step)
+  : el('p', { class: 'meta' }, "None of this subfield's papers cites another of them."));
+
+const fresh = (p) => {
+  const li = el('li');
+  li.append(titled(p), el('span', { class: 'meta' }, ` (${p.date})`));
+  return li;
+};
+
+// Asked of OpenAlex once, the first time the list is opened.
+const newList = (cluster) => {
+  const box = el('div');
+  const details = fold(`New papers citing it, since ${newSince(fieldMap)}`, box);
+  details.addEventListener('toggle', async () => {
+    if (!details.open || box.dataset.state) return;
+    box.dataset.state = 'asked';
+    box.replaceChildren(el('p', { class: 'meta', role: 'status' }, 'Asking OpenAlex…'));
+    try {
+      const found = newPapers(fieldMap, cluster, (await getJson(newPapersUrl(fieldMap, cluster))).results);
+      box.replaceChildren(found.length ? listOf(found, fresh)
+        : el('p', { class: 'meta' }, 'OpenAlex has no new paper that places in this subfield.'));
+    } catch (e) {
+      delete box.dataset.state;
+      box.replaceChildren(el('p', { class: 'meta' }, `OpenAlex could not be reached (${e.message}). Close and open this list to try again.`));
+    }
+  });
+  return details;
+};
 
 const papersOf = (n) => `${n} ${n === 1 ? 'paper' : 'papers'}`;
 
@@ -285,7 +321,9 @@ const card = (cluster, n) => {
   li.append(
     el('div', { class: 'name' }, cluster.name.join(', ')), meta, nearest(cluster),
     fold('Reviews to start with', reviews(cluster)),
+    fold('Reading order', reading(cluster)),
     fold('Most-cited papers to start with', listOf(cluster.starters, starter)),
+    newList(cluster),
     fold(`Where it publishes, as of ${fieldMap.venues.fetched}`, listOf(venues(fieldMap, cluster), venue)),
     fold(`Who publishes here, ${years}`,
       ...whoList('Authors', cluster.who.authors), ...whoList('Institutions', cluster.who.institutions)),
@@ -360,12 +398,22 @@ $('sample').addEventListener('click', () => overlay(sample(fieldMap)));
 
 const describe = (m) => {
   const [first, last] = m.scope.years;
+  const field = m.scope.field;
+  document.title = `Fieldmap — ${field}`;
+  document.querySelector('meta[name="description"]').content =
+    `A map of the subfields of ${field}, built from ${m.papers.toLocaleString()} papers, with your reading list laid ` +
+    "over it so the subfields you have not read show up.";
+  $('title').textContent = `Fieldmap: ${field}`;
+  $('source').textContent = `Every article from ${m.scope.journals.length} ${field} journals, from OpenAlex.`;
+  $('note-placement').textContent = m.scope.notes.placement;
+  $('note-who').textContent = m.scope.notes.who;
+  $('groups').textContent = m.clusters.length;
   $('scope').textContent = `${m.papers.toLocaleString()} papers from ${m.scope.journals.length} journals, ` +
     `${first}–${last}, grouped into ${m.clusters.length} subfields. Built ${m.scope.built}.`;
 };
 
 $('map').setAttribute('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
-getJson('data/map.json')
+Promise.resolve(window.location.search).then((search) => getJson(mapUrl(search)))
   .then((m) => { fieldMap = readMap(m); discs = layout(m.clusters); describe(m); draw(null); })
   .catch((e) => say(`The map could not be loaded (${e.message}). Reload the page to try again.`, true));
 </script>
