@@ -14,6 +14,7 @@ from fieldmap.build import (
     vectors,
 )
 from fieldmap.compare import recovered
+from fieldmap.fields import Field
 
 KS = (30, 40, 50)
 HEADER = (
@@ -29,14 +30,15 @@ def named(texts: list[str], labels: np.ndarray, k: int) -> list[dict]:
     return [{"id": c, "name": name(list(t))} for c, t in enumerate(terms)]
 
 
-def passes(texts: list[str], labels: np.ndarray, k: int) -> bool:
-    return check.verdict({"clusters": named(texts, labels, k)})["passed"]
+def passes(texts, labels: np.ndarray, k: int, field: Field) -> bool:
+    built = {"clusters": named(texts, labels, k)}
+    return check.verdict(built, field)["passed"]
 
 
 # ---- One row per k -------------------------------------------------------
 
 
-def row(texts, points, k: int, seeds: tuple, base: np.ndarray) -> dict:
+def row(texts, points, k: int, seeds: tuple, base, field: Field) -> dict:
     runs = [clusters(points, k, seed) for seed in seeds]
     first, rest = runs[0], runs[1:]
     return {
@@ -44,17 +46,17 @@ def row(texts, points, k: int, seeds: tuple, base: np.ndarray) -> dict:
         "ari": float(np.mean([adjusted_rand_score(first, r) for r in rest])),
         "seeds": float(np.mean([recovered(first, r) for r in rest])),
         "map": recovered(base, first),
-        "passes": sum(passes(texts, r, k) for r in runs),
+        "passes": sum(passes(texts, r, k, field) for r in runs),
         "runs": len(runs),
     }
 
 
-def stability(works, ks, seeds, dimensions: int, count: int) -> list[dict]:
+def stability(works, ks, seeds, dimensions: int, field: Field) -> list[dict]:
     corpus = papers(works)
     points = vectors(corpus, dimensions)
     texts = [p.text for p in corpus]
-    base = clusters(points, count, seeds[0])
-    return [row(texts, points, k, seeds, base) for k in ks]
+    base = clusters(points, field.clusters, seeds[0])
+    return [row(texts, points, k, seeds, base, field) for k in ks]
 
 
 def line(r: dict) -> str:

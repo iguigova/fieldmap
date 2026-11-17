@@ -81,14 +81,26 @@ export const citations = async (getJson, dois) => {
 
 // ---- Placing a paper: by DOI, else its citations, else its title words ---
 
+const DEFAULT_MAP = 'biostatistics';
+export const FIELDS_URL = 'data/fields.json';
+
 // The map a page address names, ?map=<name> for data/<name>.json, else the
 // default; a name is lowercase letters, digits and hyphens.
 export const mapUrl = (search) => {
-  const name = new URLSearchParams(search).get('map');
-  if (name === null) return 'data/map.json';
+  const name = new URLSearchParams(search).get('map') ?? DEFAULT_MAP;
   if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`no map is named "${name}"`);
   return `data/${name}.json`;
 };
+
+// Every built field but the one shown, for the page to link to.
+export const otherFields = (index, fieldMap) => index.filter((f) => f.slug !== fieldMap.scope.slug);
+
+const percent = (part, whole) => `${Math.round((100 * part) / whole)}%`;
+
+export const placementText = ({ held_back: held, by_citations: cited, by_title: titled }) =>
+  `Tested on ${held.toLocaleString('en-US')} of the map's own papers, held back while the rest built the ` +
+  `subfields, citations picked the paper's own subfield ${percent(cited, held)} of the time, and title ` +
+  `words ${percent(titled, held)}.`;
 
 export const readMap = (json) => ({ ...json, stopWords: new Set(json.stop_words) });
 

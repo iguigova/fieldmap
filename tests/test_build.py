@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from fieldmap import build
-from tests.conftest import credit, ref
+from tests.conftest import credit, ref, work
 
 TITLE_TERMS = json.loads(Path("tests/title_terms.json").read_text())
 
@@ -135,7 +135,7 @@ def test_who_ranks_by_papers_then_name():
 
 
 def paper(pid: str, refs: tuple[str, ...]) -> build.Paper:
-    return build.Paper(pid, None, pid, 2020, 0, pid, refs, "S1")
+    return build.Paper(pid, None, pid, 2020, 0, pid, refs, "S1", True)
 
 
 def test_citation_counts_count_citations_from_one_cluster_to_another():
@@ -219,3 +219,68 @@ def test_reading_order_stops_at_its_length():
     count = build.READING + 2
     corpus = [paper(f"p{n:02}", (f"p{n + 1:02}",)) for n in range(count)]
     assert len(build.reading(corpus)) == build.READING
+
+
+def test_placement_places_the_held_back_papers_by_the_rest(works):
+    tested = built(works)["placement"]
+    assert 0 < tested["held_back"] < 36
+    assert tested["by_citations"] == tested["held_back"]
+    # Every fixture title scores its theme's floor exactly, and only a title
+    # above the floor is placed.
+    assert tested["by_title"] == 0
+
+
+def test_a_title_below_the_floor_is_unplaced():
+    profiles = [{"spatial": 1.0}, {"missing": 0.5}]
+    assert build.by_title(profiles, 0.6, "Missing spatial") == 0
+    assert build.by_title(profiles, 0.6, "Missing values") is None
+    assert build.by_title(profiles, 1.0, "Spatial") is None
+
+
+def test_an_abstract_keeps_only_its_authors_words():
+    latex = (
+        r"the \documentclass{minimal} \usepackage{x} $$x$$\end{document} index"
+    )
+    assert build.own_words(latex) == "the   index"
+    for notice in (
+        "Fit. Copyright © 2015 John Wiley & Sons, Ltd.",
+        "Fit. © 2015 The Authors.",
+        "Fit. (PsycInfo Database Record (c) 2025 APA, all rights reserved).",
+        "Fit. (PsycINFO Database Record",
+    ):
+        assert build.own_words(notice) == "Fit."
+    assert build.own_words("copyright-free images") == "copyright-free images"
+
+
+def bare(n: int, cites: list[str], title: str) -> dict:
+    return work(n, "bare", "x") | {
+        "abstract_inverted_index": None,
+        "referenced_works": cites,
+        "title": title,
+    }
+
+
+def test_a_paper_without_an_abstract_is_placed_not_clustered(works):
+    extra = [
+        bare(1, [ref("missing", 0), ref("missing", 1)], "Notes"),
+        bare(2, [], "Spatial disease mapping smoothing"),
+        bare(3, [], "Notes"),
+    ]
+    field_map = built(works + extra)
+    assert field_map["without_abstract"] == {"papers": 3, "placed": 2}
+    assert field_map["dois"]["10.1/bare1"] == cluster_of(field_map, "missing")
+    assert field_map["dois"]["10.1/bare2"] == cluster_of(field_map, "spatial")
+    assert "10.1/bare3" not in field_map["dois"]
+    assert field_map["papers"] == 38
+
+
+def test_an_abstract_of_only_a_notice_is_no_abstract():
+    notice = {"Copyright": [0], "©": [1], "2015": [2]}
+    assert not build.paper(
+        work(1, "a", "a") | {"abstract_inverted_index": notice}
+    ).abstract
+
+
+def test_front_matter_titled_alike_in_every_issue_is_not_a_paper(works):
+    front = dict(works[0], title="Subscription Page")
+    assert len(build.papers([*works, front])) == 36

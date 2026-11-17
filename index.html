@@ -52,6 +52,7 @@
     <div>
       <h1 id="title">Fieldmap</h1>
       <p class="tag">What the field holds, and which parts of it you haven't read yet.</p>
+      <p id="fields" class="meta"></p>
     </div>
   </header>
 
@@ -113,7 +114,8 @@
       <div>
         <p><span id="source"></span> Papers are
           grouped by the words in their titles and abstracts and by the papers they cite. Each
-          group is named by the words that set it apart, so the names are rough.</p>
+          group is named by the words that set it apart, so the names are rough. A paper without an
+          abstract is placed afterwards, by the papers it cites and failing that by its title.</p>
         <p>A paper in your file is matched by its DOI when it's on the map. Otherwise it's placed by
           the papers it cites, looked up on OpenAlex, and failing that by its title words. Both are
           rough. <span id="note-placement"></span></p>
@@ -149,8 +151,8 @@
 
 <script type="module">
 import {
-  HEIGHT, WIDTH, afterText, citations, entries, feeText, layout, licenceText, links, mapUrl, newPapers, newPapersUrl,
-  newSince, place, readMap, recurrence, sample, soft, tally, toLookUp, venues, waiverText,
+  FIELDS_URL, HEIGHT, WIDTH, afterText, citations, entries, feeText, layout, licenceText, links, mapUrl, newPapers,
+  newPapersUrl, newSince, otherFields, place, placementText, readMap, recurrence, sample, soft, tally, toLookUp, venues, waiverText,
 } from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -405,16 +407,25 @@ const describe = (m) => {
     "over it so the subfields you have not read show up.";
   $('title').textContent = `Fieldmap: ${field}`;
   $('source').textContent = `Every article from ${m.scope.journals.length} ${field} journals, from OpenAlex.`;
-  $('note-placement').textContent = m.scope.notes.placement;
-  $('note-who').textContent = m.scope.notes.who;
+  $('note-placement').textContent = placementText(m.placement);
+  $('note-who').textContent = m.scope.who_note;
   $('groups').textContent = m.clusters.length;
   $('scope').textContent = `${m.papers.toLocaleString()} papers from ${m.scope.journals.length} journals, ` +
     `${first}–${last}, grouped into ${m.clusters.length} subfields. Built ${m.scope.built}.`;
 };
 
 $('map').setAttribute('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
-Promise.resolve(window.location.search).then((search) => getJson(mapUrl(search)))
-  .then((m) => { fieldMap = readMap(m); discs = layout(m.clusters); describe(m); draw(null); })
+const linkFields = (index) => {
+  const others = otherFields(index, fieldMap);
+  if (!others.length) return;
+  $('fields').append('Other fields: ');
+  others.forEach((f, i) => $('fields').append(i ? ' · ' : '', el('a', { href: `?map=${f.slug}` }, f.name)));
+};
+
+Promise.resolve(window.location.search).then((search) => Promise.all([getJson(mapUrl(search)), getJson(FIELDS_URL)]))
+  .then(([m, index]) => {
+    fieldMap = readMap(m); discs = layout(m.clusters); describe(m); linkFields(index); draw(null);
+  })
   .catch((e) => say(`The map could not be loaded (${e.message}). Reload the page to try again.`, true));
 </script>
 </body>

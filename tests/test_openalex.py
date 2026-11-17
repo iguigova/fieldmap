@@ -2,7 +2,9 @@ import urllib.parse
 
 import pytest
 
-from fieldmap import openalex, scope
+from fieldmap import fields, openalex, scope
+
+FIELD = fields.load("biostatistics")
 
 
 def test_page_url_asks_for_one_numbered_page_of_the_filter():
@@ -35,8 +37,8 @@ def test_abstract_of_nothing_is_empty():
 
 
 def test_scope_asks_one_query_per_year_of_the_kind():
-    filters = scope.works_filters(scope.REVIEW)
-    assert len(filters) == scope.YEARS[1] - scope.YEARS[0] + 1
+    filters = scope.works_filters(FIELD, scope.REVIEW)
+    assert len(filters) == FIELD.years[1] - FIELD.years[0] + 1
     assert "publication_year:2015," in filters[0]
     assert filters[0].endswith(",type:review")
 

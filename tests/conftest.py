@@ -1,4 +1,8 @@
+import dataclasses
+
 import pytest
+
+from fieldmap import fields
 
 THEMES = {
     "spatial": "spatial disease mapping region neighbour county smoothing",
@@ -25,6 +29,12 @@ def work(n: int, theme: str, words: str) -> dict:
             "source": {"id": f"https://openalex.org/S{1 + n % 4 // 3}"}
         },
     }
+
+
+# Biostatistics' settings, at the three clusters the fixture's themes make.
+@pytest.fixture
+def field() -> fields.Field:
+    return dataclasses.replace(fields.load("biostatistics"), clusters=3)
 
 
 @pytest.fixture

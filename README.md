@@ -1,25 +1,28 @@
 # Fieldmap
 
-A map of biostatistics that shows which of its subfields a reading list
-covers and which it misses, who works in each, which subfields each one
-is closest to, and which journals each publishes in and what they charge.
+A map of a research field that shows which of its subfields a reading
+list covers and which it misses, what to read first in each, who works
+in each, which subfields each one is closest to, and which journals each
+publishes in and what they charge. Three fields are mapped:
 
-**[Open the map →](https://iguigova.github.io/fieldmap/)**
+- **[Biostatistics →](https://iguigova.github.io/fieldmap/)**
+- **[Epidemiology →](https://iguigova.github.io/fieldmap/?map=epidemiology)**
+- **[Psychology methods →](https://iguigova.github.io/fieldmap/?map=psychology-methods)**
 
-![A walk through Fieldmap. The page shows a map of 40 grey circles, one per
-subfield. Clicking "Try a sample reading list" fills eight circles with a
+![A walk through Fieldmap's biostatistics map. The page shows a map of 40
+grey circles, one per subfield, and links to the other fields under its
+title. Clicking "Try a sample reading list" fills eight circles with a
 count of the reader's papers and turns the other 32 into hollow dashed
-circles. Below the map, the 32 gaps are listed; opening one shows its five
-most-cited papers. Eight circle names are in italics, the soft subfields.
-Last, the theme switch turns the page dark.](docs/demo.gif)
+circles. Below the map, the 32 gaps are listed; opening one shows the
+reviews to start with. Thirteen circle names are in italics, the soft
+subfields. Last, the theme switch turns the page dark.](docs/demo.gif)
 
 ## Use it
 
 1. Export a reference library as a BibTeX file. In Zotero: right-click
    *My Library* or a collection, choose *Export Library…* or *Export
    Collection…*, and pick BibTeX.
-2. Open [the map](https://iguigova.github.io/fieldmap/) and choose *Load a
-   BibTeX file*.
+2. Open the field's map, linked above, and choose *Load a BibTeX file*.
 3. Read the map:
    - **Filled circle with a number:** a subfield the library covers; the
      number is how many of its papers sit there.
@@ -53,74 +56,110 @@ map leave it: they are sent to [OpenAlex](https://openalex.org) to look up
 what those papers cite. Opening *New papers citing it* asks OpenAlex too,
 with the works that subfield cites, and sends nothing from the file.
 
-## What the map covers
+## What the maps cover
 
-- **Papers:** 11,331 articles from 2015 to 2025 in eight general
-  biostatistics journals: Biometrics, Statistics in Medicine,
-  Biostatistics, Statistical Methods in Medical Research, Biometrical
-  Journal, BMC Medical Research Methodology, Statistics in Biosciences and
-  The International Journal of Biostatistics. A subfield that publishes
-  mostly in other journals looks smaller here than it is.
-- **Subfields:** 40 groups of papers that use the same words and cite the
+| Field | Journals | Papers, 2015–2025 | Subfields |
+|---|---|---|---|
+| Biostatistics | 8 | 11,298 | 40 |
+| Epidemiology | 8 | 15,201 | 40 |
+| Psychology methods | 11 | 7,083 | 40 |
+
+- **Papers:** every article OpenAlex lists in the field's journals from
+  2015 to 2025. A subfield that publishes mostly in other journals looks
+  smaller here than it is.
+  - Biostatistics: Biometrics, Statistics in Medicine, Biostatistics,
+    Statistical Methods in Medical Research, Biometrical Journal, BMC
+    Medical Research Methodology, Statistics in Biosciences and The
+    International Journal of Biostatistics.
+  - Epidemiology: American Journal of Epidemiology, Epidemiology,
+    International Journal of Epidemiology, European Journal of
+    Epidemiology, Journal of Clinical Epidemiology, Annals of
+    Epidemiology, Journal of Epidemiology & Community Health and
+    Paediatric and Perinatal Epidemiology.
+  - Psychology methods: Psychological Methods, Psychometrika,
+    Multivariate Behavioral Research, Behavior Research Methods,
+    Structural Equation Modeling, British Journal of Mathematical and
+    Statistical Psychology, Educational and Psychological Measurement,
+    Applied Psychological Measurement, Journal of Educational
+    Measurement, Journal of Educational and Behavioral Statistics and
+    Advances in Methods and Practices in Psychological Science.
+- **Subfields:** groups of papers that use the same words and cite the
   same work. Each is named by the five words that set it apart from the
-  rest, such as *missing, imputation, mi, multiple, missingness*. A few
-  groups are topics rather than methods, such as *covid* and *survey*.
+  rest, such as *missing, imputation, mi, multiple, missingness* in
+  biostatistics. Some are topics rather than methods, such as *covid*.
+  Report words name a few in epidemiology, such as *ci, women, diabetes,
+  smoking, association*, a soft subfield of 739 papers.
+- **Papers without an abstract:** they take no part in building the
+  subfields, since a title alone groups with other titles rather than
+  with its topic. Each is placed by the works it cites, then by its
+  title, and left off the map when neither matches: 404 of 436 are
+  placed in biostatistics, 3,897 of 4,083 in epidemiology and 1,232 of
+  1,260 in psychology methods.
 - **Placement:** a paper in the map's journals is matched by its DOI. Any
   other paper with a DOI is placed by the works it cites, as OpenAlex lists
   them. A paper whose citations match no subfield, or that has no DOI, is
   placed by the words in its title, and left unplaced when its title
-  matches no subfield closely. On a fifth of the map's own papers, held
+  matches no subfield closely. On a fifth of each map's own papers, held
   back while the rest built the subfields, citations picked the paper's
-  own subfield two times in three and title words about half the time.
+  own subfield 66% of the time in biostatistics, 43% in epidemiology and
+  68% in psychology methods, and title words 51%, 49% and 58%.
+  Epidemiology's papers cite clinical work widely, and OpenAlex lists no
+  references for a third of the International Journal of Epidemiology's.
   The line under *Load a BibTeX file* gives the counts.
-- **Reviews:** the 545 works OpenAlex types as reviews in the same
-  journals and years. They take no part in building the subfields; each
-  is placed by the works it cites, as an outside paper is. 530 are
-  placed, and three subfields get none: *censored, interval*, *recurrent,
-  events* and *cure, mixture*. Some are systematic reviews of a clinical
-  question rather than introductions to a method. In the soft subfield
-  *regression, case, sampling* they run from spline software in R to
-  kernel estimates of spatial risk.
+- **Reviews:** the works OpenAlex types as reviews in the same journals
+  and years. They take no part in building the subfields; each is placed
+  by the works it cites, as an outside paper is. Biostatistics places
+  525 of 545, and three of its subfields get none: *sampling, case*,
+  *cure, mixture* and *recurrent, event*. Epidemiology places 1,430 of
+  1,559, and every subfield gets some. Psychology methods places 97 of
+  104, and 11 subfields get none. Some are systematic reviews of a
+  clinical question rather than introductions to a method.
 - **Reading order:** the ten papers a subfield's own papers cite most,
   each placed after the ones of the ten it cites, and the most cited
   first otherwise. A loop of papers citing each other starts at its most
-  cited. Each says which earlier entries it builds on; a subfield's ten
-  hold a median of three that build on another, and two subfields hold
-  none. The map starts in 2015, so a classic from before then is not in
-  the order.
+  cited. Each says which earlier entries it builds on. A subfield's ten
+  hold a median of three that build on another in biostatistics and
+  epidemiology, and five in psychology methods; four epidemiology
+  subfields hold none. The maps start in 2015, so a classic from before
+  then is not in the order.
 - **New papers:** the page asks OpenAlex, when the list is opened, for
   the 50 newest works since the map's last year that cite any of the five
   works the subfield cites most tellingly, and shows the first five that
-  place in that subfield by what they cite. On 2026-11-17, 1,495 of the
-  2,000 works asked for across the 40 subfields placed back, and every
-  subfield showed five. Many apply a method rather than develop it, such
-  as a cohort study of mortality after heart-valve replacement under the
-  joint-modelling subfield.
+  place in that subfield by what they cite. On 2026-11-17 every subfield
+  of the three maps showed five; of the works asked for, 1,466 of 2,000
+  placed back in biostatistics, 1,636 of 1,969 in epidemiology and 1,394
+  of 2,000 in psychology methods. Many apply a method rather than
+  develop it, such as a cohort study of mortality after heart-valve
+  replacement under biostatistics' joint-modelling subfield.
 - **Who:** the authors, institutions and funders OpenAlex records on a
-  subfield's papers from 2021 to 2025. Of those 5,409 papers, 99% name an
-  institution and 76% a funder. OpenAlex sometimes credits a paper to the
-  wrong person of the same name: of 58 recent papers it credits to Yale's
-  Fan Li, one is by Duke's Fan Li, and one by both credits both to
-  Yale's. It names a funder and its parts
-  separately: of 581 recent papers that name the National Cancer
-  Institute, 397 also name the National Institutes of Health, and only
+  subfield's papers from 2021 to 2025. Nearly all of those papers name an
+  institution; 76% name a funder in biostatistics, 66% in epidemiology
+  and 54% in psychology methods. OpenAlex sometimes credits a paper to
+  the wrong person of the same name: of 59 recent biostatistics papers
+  it credits to Yale's Fan Li, one is by Duke's Fan Li, and one by both
+  credits both to Yale's. It names a funder and its parts separately: of
+  580 recent biostatistics papers that name the National Cancer
+  Institute, 396 also name the National Institutes of Health, and only
   those count for both.
-- **Venues:** the eight journals above, and no others. OpenAlex gives each
-  one's fee for the latest year it lists, whether it is fully open access
-  and whether it is in MEDLINE. For a journal that is not fully open
-  access, the fee is the price of making one article open. DOAJ, the
+- **Venues:** each field's journals above, and no others. OpenAlex gives
+  each one's fee for the latest year it lists, whether it is fully open
+  access and whether it is in MEDLINE. For a journal that is not fully
+  open access, the fee is the price of making one article open. DOAJ, the
   Directory of Open Access Journals, gives a journal's licences and fee
-  waiver; it lists one of the eight, BMC Medical Research Methodology, so
-  for the other seven neither is known here.
+  waiver. It lists BMC Medical Research Methodology among biostatistics'
+  journals, Advances in Methods and Practices in Psychological Science
+  among psychology methods', and none of epidemiology's; for the rest,
+  neither is known here.
 
 ## Method
 
 `src/fieldmap/build.py` holds every step, and its constants hold every
 setting.
 
-1. **Papers.** Every work OpenAlex types as an article in the eight
-   journals from 2015 to 2025, less those with no title and the journals'
-   cover pictures. A paper's text is its title and abstract.
+1. **Papers.** Every work OpenAlex types as an article in the field's
+   journals and years, less those with no title and the journals' cover
+   pictures. A paper's text is its title and abstract, less a LaTeX
+   preamble around a formula and a publisher's copyright notice.
 2. **Words.** Each paper becomes a TF-IDF vector of single words and
    two-word phrases, with sublinear term frequency. English stop words
    are dropped, along with words every methods abstract uses, such as
@@ -133,8 +172,8 @@ setting.
    side, so words and citations weigh the same. Truncated SVD reduces them
    to 100 dimensions, and the result is scaled to unit length again.
 5. **Groups.** k-means with k = 40, best of 10 starts, seed 0. The number
-   40 is set by hand in `src/fieldmap/scope.py`, not chosen by a fit
-   statistic; *Stability* below says how much the groups depend on it.
+   40 is set by hand in each field's file, not chosen by a fit statistic;
+   *Stability* below says how much the groups depend on it.
 6. **Names.** Each group's words are scored by class-based TF-IDF: how
    often a term appears in the group, weighted by how rare it is across
    groups. The name is the five top terms, skipping a term whose words
@@ -166,44 +205,68 @@ setting.
     `src/fieldmap/venues.py` turns each journal's OpenAlex and DOAJ
     records into the facts the page shows, and the map ships them with
     the day they were fetched.
+13. **Placement test.** A fifth of the papers, drawn with seed 0, is held
+    back. The rest are profiled under the map's own groups, and each
+    held-back paper is placed by its citations and, separately, by its
+    title, as the page places a paper off the map. The map ships how many
+    of each landed in the paper's own group, and the page states the
+    shares.
 
-`uv run fieldmap check` tests the result against subfields known before
-the build. Each of the five named in
-[the Academia.SE question](https://academia.stackexchange.com/questions/228054)
-that started this map (causal inference, research synthesis, ML methods,
-spatial statistics, missing data) must name a group, and four of five
-held back (survival analysis, clinical trial design, longitudinal data,
-multiple testing, statistical genetics) must. The map finds all five
-named and four held back. Multiple testing is the one no group names by
-that phrase; the nearest group is *test, tests, testing, error,
-hypothesis*.
+`uv run fieldmap check` tests a map against subfields known before it
+was built, named in the field's file: every one of five named subfields
+must name a group, and four of five held back must.
+
+- **Biostatistics:** the five named in
+  [the Academia.SE question](https://academia.stackexchange.com/questions/228054)
+  that started this map (causal inference, research synthesis, ML
+  methods, spatial statistics, missing data) are all found, and four of
+  five held back (survival analysis, clinical trial design, longitudinal
+  data, multiple testing, statistical genetics). No group names multiple
+  testing by that phrase; the nearest is *test, tests, testing, error,
+  hypothesis*.
+- **Epidemiology:** all five named (causal inference, cancer,
+  cardiovascular, infectious disease, perinatal) and four of five held
+  back (diet, air pollution, mental health, research methods, social
+  inequality). Research methods is missed; the nearest group is
+  *guidelines, guideline, reviews, evidence, recommendations*.
+- **Psychology methods:** all five named (structural equation modeling,
+  item response theory, missing data, meta-analysis, Bayesian methods)
+  and all five held back (multilevel and longitudinal, mediation,
+  measurement invariance, replication, experiment software).
 
 ### Stability
 
 `uv run fieldmap stability` reruns k-means on the same vectors at
 k = 30, 40 and 50, each with seeds 0 to 4, and compares the runs as step
-9 does. On the map's data, run 2026-11-12:
+9 does. On each map's data, run 2026-11-17:
 
-| k | Seeds agree (mean adjusted Rand index, seed 0 against 1–4) | Groups found again under another seed | The map's 40 groups found at this k, seed 0 | Runs passing the check |
-|---|---|---|---|---|
-| 30 | 0.61 | 72% | 65% | 5 of 5 |
-| 40 | 0.63 | 81% | 100% | 5 of 5 |
-| 50 | 0.63 | 75% | 78% | 5 of 5 |
+| Field | k | Seeds agree (mean adjusted Rand index, seed 0 against 1–4) | Groups found again under another seed | The map's 40 groups found at this k, seed 0 | Runs passing the check |
+|---|---|---|---|---|---|
+| Biostatistics | 30 | 0.61 | 72% | 57% | 5 of 5 |
+| | 40 | 0.61 | 71% | 100% | 5 of 5 |
+| | 50 | 0.70 | 82% | 82% | 5 of 5 |
+| Epidemiology | 30 | 0.60 | 70% | 62% | 4 of 5 |
+| | 40 | 0.64 | 76% | 100% | 5 of 5 |
+| | 50 | 0.64 | 72% | 82% | 5 of 5 |
+| Psychology methods | 30 | 0.64 | 79% | 62% | 4 of 5 |
+| | 40 | 0.71 | 83% | 100% | 5 of 5 |
+| | 50 | 0.75 | 82% | 92% | 5 of 5 |
 
-About four in five of the map's groups come back under another seed; the
-rest split or merge differently from run to run. Per group, 19 of the 40
-are found again in all four reruns, 13 in three, 6 in two and 2 in one.
-The two found in one are *brain, network, networks* and the largest,
-*regression, case, sampling*, with 1,007 papers. k = 40 is no clear
-optimum: from 30 to 50 the seeds agree about equally, and every run
-passes the check.
+About three in four of a map's groups come back under another seed; the
+rest split or merge differently from run to run. Of the 40 groups, the
+four reruns all find 18 in biostatistics, 19 in epidemiology and 27 in
+psychology methods, and none find 4, 8 and 4. The largest group of
+biostatistics, *longitudinal, effects, mixed*, with 1,023 papers, and of
+epidemiology, *ci, women, diabetes*, with 739, are among those none
+find. k = 40 is no clear optimum: biostatistics and psychology methods
+agree more at k = 50, and every run at k = 40 passes its check.
 
-The same steps map another field by changing the field's name, journals,
-years and measured notes in `src/fieldmap/scope.py`, the subfields
-`src/fieldmap/check.py` tests, and the words every methods abstract
-uses, `BOILERPLATE` in `src/fieldmap/build.py`. The page takes the
-field's name, journals and notes from the map it loads: `data/map.json`,
-or `data/<name>.json` for `?map=<name>` in the page's address.
+Each field is one file under `src/fieldmap/fields/`: its name, journals,
+years, number of groups, the subfields its check needs and, when one was
+found by hand, a note on its *Who* data. A new field is a new file there
+and its slug in `SLUGS` in `src/fieldmap/fields/__init__.py`. The page
+loads `data/<slug>.json` for `?map=<slug>` in its address, biostatistics
+without one, and links every map `data/fields.json` lists.
 
 The code was written with Claude, an AI assistant. Every number on the
 map and in this README comes from running it.
@@ -215,14 +278,20 @@ The map is built by a Python pipeline run with
 data:
 
 ```sh
-uv run fieldmap fetch      # download the papers into data/raw/
-uv run fieldmap reviews    # download the reviews into data/raw/
+uv run fieldmap fetch      # download the papers into data/raw/<slug>/
+uv run fieldmap reviews    # download the reviews into data/raw/<slug>/
 uv run fieldmap who        # download their authors and funders, by id
 uv run fieldmap venues     # download the journals' OpenAlex and DOAJ records
-uv run fieldmap build      # cluster them into data/map.json
-uv run fieldmap check      # check the named subfields in check.py are found
+uv run fieldmap build      # cluster them into data/<slug>.json
+uv run fieldmap check      # check the field's subfields are found
 uv run fieldmap stability  # rerun the clustering at other k and seeds
 ```
+
+Each command takes `--field <slug>`, biostatistics by default. Without
+an API key, OpenAlex gives each address a free daily budget of about
+1,000 list requests; downloading a field takes one request per 200
+papers and one per 100 for their authors, so a field of 20,000 papers
+takes about 300.
 
 `index.html` draws the page and `fieldmap.js` holds its logic: reading
 BibTeX, placing papers and laying out the map. The page loads the site's
@@ -243,11 +312,11 @@ into `docs/demo.gif`.
 Each of these is a change to the pipeline and the page, and open to a
 request:
 
-- **More journals.** The venues are the eight the map is built from. A
-  journal added to `JOURNALS` in `src/fieldmap/scope.py` joins both the
-  map and the venues on the next build.
-- **Another field.** The same steps map another field; *Stability* above
-  names what changes.
+- **More journals.** A field's venues are the journals its map is built
+  from. A journal added to a field's file joins both the map and the
+  venues on the next build.
+- **Another field.** A new file under `src/fieldmap/fields/`, as
+  *Stability* above says.
 - **Licence checks.** A paper reusing a figure or table under one
   Creative Commons licence can only go to a venue whose licence is
   compatible with it. The venues' licences are already on the map; the

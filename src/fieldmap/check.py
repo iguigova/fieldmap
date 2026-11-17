@@ -1,27 +1,13 @@
 """Checks that a built map finds the subfields it was built to find.
 
 A subfield is found when one of a cluster's name terms holds one of the
-subfield's terms as whole words. The map passes when every NAMED subfield
-is found and at least HELD_OUT_NEEDED of the HELD_OUT ones are.
+subfield's terms as whole words. The map passes when every subfield its
+field names is found, and enough of the held-out ones are.
 """
 
 import re
 
-NAMED = {
-    "causal inference": ("causal", "propensity", "instrumental"),
-    "research synthesis": ("meta-analysis", "meta", "network meta-analysis"),
-    "ML methods": ("machine learning", "learning", "random forest", "neural"),
-    "spatial statistics": ("spatial",),
-    "missing data": ("missing", "imputation"),
-}
-HELD_OUT = {
-    "survival analysis": ("survival", "hazard", "competing risks"),
-    "clinical trial design": ("trial", "trials", "dose", "adaptive"),
-    "longitudinal data": ("longitudinal", "mixed", "repeated measures"),
-    "multiple testing": ("multiple testing", "false discovery"),
-    "statistical genetics": ("genetic", "gwas", "genomic", "snp", "gene"),
-}
-HELD_OUT_NEEDED = 4
+from fieldmap.fields import Field
 
 
 def holds(subfield_term: str, name_term: str) -> bool:
@@ -41,15 +27,15 @@ def found(subfields: dict, clusters: list[dict]) -> dict[str, list[int]]:
     return {s: owners(terms, clusters) for s, terms in subfields.items()}
 
 
-def verdict(field_map: dict) -> dict:
-    named = found(NAMED, field_map["clusters"])
-    held_out = found(HELD_OUT, field_map["clusters"])
+def verdict(field_map: dict, field: Field) -> dict:
+    named = found(field.named, field_map["clusters"])
+    held_out = found(field.held_out, field_map["clusters"])
     return {
         "named": named,
         "held_out": held_out,
         "passed": (
             all(named.values())
-            and sum(map(bool, held_out.values())) >= HELD_OUT_NEEDED
+            and sum(map(bool, held_out.values())) >= field.held_out_needed
         ),
     }
 
@@ -61,14 +47,15 @@ def report_line(subfield: str, ids: list[int], clusters: list[dict]) -> str:
     return f"  found    {subfield}: {names}"
 
 
-def report(field_map: dict) -> str:
-    result = verdict(field_map)
+def report(field_map: dict, field: Field) -> str:
+    result = verdict(field_map, field)
     clusters = field_map["clusters"]
     lines = ["Named by the asker:"]
     lines += [
         report_line(s, ids, clusters) for s, ids in result["named"].items()
     ]
-    lines += [f"Held out (need {HELD_OUT_NEEDED} of {len(HELD_OUT)}):"]
+    need = f"{field.held_out_needed} of {len(field.held_out)}"
+    lines += [f"Held out (need {need}):"]
     lines += [
         report_line(s, ids, clusters) for s, ids in result["held_out"].items()
     ]

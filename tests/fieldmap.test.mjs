@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  HEIGHT, WIDTH, afterText, citations, cleanDoi, entries, feeText, layout, licenceText, links, lookupUrl, mapUrl, newPapers, newPapersUrl, newSince, place,
+  FIELDS_URL, HEIGHT, WIDTH, afterText, citations, cleanDoi, entries, feeText, layout, licenceText, links, lookupUrl, mapUrl, newPapers, otherFields, placementText, newPapersUrl, newSince, place,
   readMap, recurrence, sample, shortId, shortName, soft, tally, titleTerms, toLookUp, venues, waiverText,
 } from '../fieldmap.js';
 
 const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
-const SHIPPED = read('../data/map.json');
+const SHIPPED = read('../data/biostatistics.json');
 const TITLE_TERMS = read('./title_terms.json');
 
 const cluster = (id, name, terms, refs = {}, size = 10, x = 0.5, y = 0.5) => ({
@@ -23,7 +23,7 @@ const FIELD_MAP = readMap({
     cluster(1, ['spatial', 'disease'], { spatial: 1, disease: 0.5 }, { W3: 1 }, 20),
   ],
   dois: { '10.1/abc': 1 },
-  scope: { years: [2015, 2025] },
+  scope: { slug: 'biostatistics', years: [2015, 2025] },
 });
 
 test('a DOI is lowercased and loses its resolver', () => {
@@ -205,8 +205,23 @@ test('a reading-order entry names the earlier entries it builds on', () => {
 });
 
 test('a page address names the map it shows', () => {
-  assert.equal(mapUrl(''), 'data/map.json');
+  assert.equal(mapUrl(''), 'data/biostatistics.json');
   assert.equal(mapUrl('?map=ecology'), 'data/ecology.json');
   assert.throws(() => mapUrl('?map=../x'), /no map is named "..\/x"/);
   assert.throws(() => mapUrl('?map=ecology/../x'), /no map is named/);
+});
+
+test('the page links every other built field', () => {
+  const index = [{ slug: 'biostatistics', name: 'biostatistics' }, { slug: 'ecology', name: 'ecology' }];
+  assert.deepEqual(otherFields(index, FIELD_MAP), [{ slug: 'ecology', name: 'ecology' }]);
+});
+
+test('placement is stated as the share of held-back papers placed right', () => {
+  assert.equal(placementText({ held_back: 2304, by_citations: 1560, by_title: 1214 }),
+    "Tested on 2,304 of the map's own papers, held back while the rest built the subfields, citations " +
+    "picked the paper's own subfield 68% of the time, and title words 53%.");
+});
+
+test('the page reads the field index the build writes beside the maps', () => {
+  assert.ok(read(`../${FIELDS_URL}`).some((f) => f.slug === SHIPPED.scope.slug));
 });

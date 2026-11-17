@@ -1,6 +1,7 @@
 """Turn the scope's works into the map the page reads: clusters, names,
 who works in each, where it publishes and which others each cites."""
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 
@@ -71,6 +72,21 @@ TERM_SETTINGS = {
 REF_SETTINGS = {"analyzer": list, "min_df": 2}
 # A journal's front matter that OpenAlex types as an article.
 FRONT_MATTER = "Cover Picture:"
+# Front matter a journal titles the same in every issue.
+FRONT_MATTER_TITLES = {
+    "cover page",
+    "oup accepted manuscript",
+    "reviewer acknowledgments",
+    "subscription page",
+    "thanks to our reviewers",
+}
+# What a publisher adds to an abstract: a LaTeX preamble around a formula,
+# and a copyright notice from its start to the end of the abstract.
+LATEX = re.compile(r"\\documentclass.*?\\end\{document\}", re.S)
+COPYRIGHT = re.compile(
+    r"\s*(?:\(PsycINFO Database Record|(?:Copyright\s*)?©|\(c\) \d{4}).*$",
+    re.I | re.S,
+)
 DIMENSIONS = 100
 # The map is clustered with the first seed; the rest rerun it to test it.
 SEEDS = (0, 1, 2, 3, 4)
@@ -80,6 +96,8 @@ SHIPPED_TERMS = 150
 SHIPPED_REFS = 300
 # A title scoring below this share of the map's own titles is left unplaced.
 FLOOR_PERCENTILE = 5
+# The share of the map's papers held back to test placement.
+HELD_BACK = 0.2
 # Who is active in a subfield: the map's last five years.
 ACTIVE_YEARS = 5
 WHO_KINDS = ("authors", "institutions", "funders")
@@ -99,6 +117,8 @@ class Paper:
     text: str
     refs: tuple[str, ...]
     journal: str
+    # Whether it has an abstract of its authors' own words.
+    abstract: bool
 
 
 def short_doi(doi: str | None) -> str | None:
@@ -109,22 +129,32 @@ def short_id(url: str) -> str:
     return url.rsplit("/", 1)[-1]
 
 
+def own_words(text: str) -> str:
+    return COPYRIGHT.sub("", LATEX.sub(" ", text))
+
+
 def paper(work: dict) -> Paper:
+    words = own_words(abstract(work["abstract_inverted_index"]))
     return Paper(
         id=short_id(work["id"]),
         doi=short_doi(work.get("doi")),
         title=work["title"],
         year=work["publication_year"],
         cites=work["cited_by_count"],
-        text=f"{work['title']} {abstract(work['abstract_inverted_index'])}",
+        text=f"{work['title']} {words}",
         refs=tuple(map(short_id, work.get("referenced_works") or ())),
         journal=short_id(work["primary_location"]["source"]["id"]),
+        abstract=bool(words.strip()),
     )
 
 
 def is_paper(work: dict) -> bool:
     title = work.get("title") or ""
-    return bool(title) and not title.startswith(FRONT_MATTER)
+    return (
+        bool(title)
+        and not title.startswith(FRONT_MATTER)
+        and title.strip().lower() not in FRONT_MATTER_TITLES
+    )
 
 
 def papers(works: list[dict]) -> list[Paper]:
@@ -310,6 +340,50 @@ def reviewed(clusters: list, reviews: list[Paper], count: int) -> list:
     ]
 
 
+# ---- Placement: how often a held-back paper lands in its own subfield --
+
+
+def by_title(term_profiles: list[dict], floor: float, title: str):
+    terms = title_terms(title)
+    scores = [sum(w.get(t, 0) for t in terms) for w in term_profiles]
+    top = int(np.argmax(scores))
+    return top if scores[top] > floor else None
+
+
+# The rest are profiled under the map's own labels; the held-back fifth is
+# placed by those profiles, as the page places a paper off the map.
+def placement(corpus: list[Paper], labels: np.ndarray, count: int) -> dict:
+    held = np.random.default_rng(SEEDS[0]).random(len(corpus)) < HELD_BACK
+    rest = [p for p, h in zip(corpus, held, strict=True) if not h]
+    refs = profiles(
+        REF_SETTINGS,
+        [p.refs for p in rest],
+        labels[~held],
+        count,
+        SHIPPED_REFS,
+    )
+    terms = profiles(
+        TERM_SETTINGS,
+        [p.text for p in rest],
+        labels[~held],
+        count,
+        SHIPPED_TERMS,
+    )
+    floor = title_floor(rest, terms)
+    tested = [
+        (p, int(k)) for p, k, h in zip(corpus, labels, held, strict=True) if h
+    ]
+    return {
+        "held_back": len(tested),
+        "by_citations": sum(
+            by_citations(refs, p.refs) == k for p, k in tested
+        ),
+        "by_title": sum(
+            by_title(terms, floor, p.title) == k for p, k in tested
+        ),
+    }
+
+
 # ---- Reading order: what a subfield builds on, each after its sources ----
 
 
@@ -404,6 +478,32 @@ def doi_clusters(corpus, labels) -> dict[str, int]:
     }
 
 
+def grouping(texted: list[Paper], count: int, dimensions: int):
+    points = vectors(texted, dimensions)
+    grouped = clusters(points, count, SEEDS[0])
+    reruns = [groups(clusters(points, count, s)) for s in SEEDS[1:]]
+    recurred = [recurs(g, reruns) for g in groups(grouped)]
+    return points, grouped, len(reruns), recurred
+
+
+# A paper without an abstract goes where its citations, else its title, put
+# it, and is left off the map when neither does.
+def home(refs: list[dict], terms: list[dict], floor: float, p: Paper):
+    cited = by_citations(refs, p.refs)
+    return by_title(terms, floor, p.title) if cited is None else cited
+
+
+def placed_bare(bare, refs, terms, floor) -> list[tuple[Paper, int]]:
+    homes = [(p, home(refs, terms, floor, p)) for p in bare]
+    return [(p, h) for p, h in homes if h is not None]
+
+
+def joined(texted, grouped, kept) -> tuple[list[Paper], np.ndarray]:
+    corpus = texted + [p for p, _ in kept]
+    labels = np.concatenate([grouped, [h for _, h in kept]]).astype(int)
+    return corpus, labels
+
+
 def field_map(
     works: list[dict],
     review_works: list[dict],
@@ -411,30 +511,37 @@ def field_map(
     count: int,
     dimensions: int,
 ) -> dict:
-    corpus = papers(works)
-    points = vectors(corpus, dimensions)
-    labels = clusters(points, count, SEEDS[0])
-    reruns = [groups(clusters(points, count, s)) for s in SEEDS[1:]]
-    recurred = [recurs(g, reruns) for g in groups(labels)]
-    texts = [p.text for p in corpus]
-    cited = [p.refs for p in corpus]
-    terms = profiles(TERM_SETTINGS, texts, labels, count, SHIPPED_TERMS)
-    refs = profiles(REF_SETTINGS, cited, labels, count, SHIPPED_REFS)
-    positions = layout(points, labels, count)
+    every = papers(works)
+    texted = [p for p in every if p.abstract]
+    bare = [p for p in every if not p.abstract]
+    points, grouped, reruns, recurred = grouping(texted, count, dimensions)
+    texts = [p.text for p in texted]
+    cited = [p.refs for p in texted]
+    terms = profiles(TERM_SETTINGS, texts, grouped, count, SHIPPED_TERMS)
+    refs = profiles(REF_SETTINGS, cited, grouped, count, SHIPPED_REFS)
+    floor = title_floor(texted, terms)
+    positions = layout(points, grouped, count)
+    kept = placed_bare(bare, refs, terms, floor)
+    corpus, labels = joined(texted, grouped, kept)
     members = memberships(corpus, labels, count)
     by_id = {short_id(w["id"]): w for w in who_works}
     since = max(p.year for p in corpus) - ACTIVE_YEARS + 1
-    sizes = np.array([len(m) for m in members])
+    sizes = np.array(list(map(len, members)))
     near = neighbours(citation_counts(corpus, labels, count), sizes)
     reviews = papers(review_works)
-    homes = placed(refs, reviews)
-    by_cluster = reviewed(homes, reviews, count)
+    review_homes = placed(refs, reviews)
+    by_cluster = reviewed(review_homes, reviews, count)
     return {
         "papers": len(corpus),
+        "without_abstract": {
+            "papers": len(bare),
+            "placed": len(kept),
+        },
         "stop_words": STOP_WORDS,
-        "title_floor": title_floor(corpus, terms),
-        "reruns": len(reruns),
+        "title_floor": floor,
+        "reruns": reruns,
         "active_since": since,
+        "placement": placement(texted, grouped, count),
         "clusters": [
             cluster_entry(
                 c, members[c], positions[c], terms[c], refs[c], recurred[c]
@@ -449,7 +556,7 @@ def field_map(
         ],
         "reviews": {
             "fetched": len(reviews),
-            "placed": sum(h is not None for h in homes),
+            "placed": len(reviews) - review_homes.count(None),
         },
         "dois": doi_clusters(corpus, labels),
     }
