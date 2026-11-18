@@ -17,7 +17,12 @@ title. Clicking "Try a sample reading list" fills eight circles with a
 count of the reader's papers and turns the other 32 into hollow dashed
 circles. Below the map, the 32 gaps are listed; opening one shows the
 reviews to start with. Thirteen circle names are in italics, the soft
-subfields. Last, the theme switch turns the page dark.](docs/demo.gif)
+subfields. Typing "missing data imputation" into the topic box gives a
+reading path from 200 papers OpenAlex found: five reviews to start with,
+then the older works they build on, in reading order. Below it, a small
+map shows the topic's six groups, named information, generative,
+imputation techniques, feature, electrical and demand. Last, the theme
+switch turns the page dark.](docs/demo.gif)
 
 ## Use it
 
