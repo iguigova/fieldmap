@@ -4,7 +4,8 @@ A map of a research field that shows which of its subfields a reading
 list covers and which it misses, what to read first in each, who works
 in each, which subfields each one is closest to, and which journals each
 publishes in and what they charge. For a topic in any field, it gives a
-reading path instead. Three fields are mapped:
+reading path instead, and a small map of the topic's own groups. Three
+fields are mapped:
 
 - **[Biostatistics →](https://iguigova.github.io/fieldmap/)**
 - **[Epidemiology →](https://iguigova.github.io/fieldmap/?map=epidemiology)**
@@ -63,7 +64,9 @@ sends nothing from the file.
 For a topic outside the three fields, type it, or a paper's DOI, under
 *Any topic* and choose *Build a reading path*. The page asks OpenAlex
 for the works on it and lists its reviews to start with, a reading order,
-its most-cited papers and its new papers from the last twelve months. The
+its most-cited papers and its new papers from the last twelve months.
+Below them, a small map groups its works by the papers they cite, with a
+card per group giving its reading order and most-cited works. The
 address then names the topic, as in
 [`?topic=missing data imputation`](https://iguigova.github.io/fieldmap/?topic=missing%20data%20imputation),
 so a reading path can be shared as a link.
@@ -73,7 +76,7 @@ so a reading path can be shared as a link.
 The browser asks OpenAlex directly, from the reader's connection, so a
 reading path costs nothing to host. OpenAlex gives each connection 1,000
 free credits a day: a search costs 10 and any other request 1, so a topic
-takes 13 and a DOI 5.
+takes 13 and a DOI 5, plus one for each of its groups.
 
 - **Works:** one page of 200 from OpenAlex's search for the topic,
   articles and reviews, in the order it ranks them; for a DOI, the paper
@@ -89,6 +92,22 @@ takes 13 and a DOI 5.
 - **New papers:** the 50 newest works from the last twelve months citing
   a core work, keeping those that cite at least two, those citing more
   first.
+- **Groups:** two works are linked by the papers they both cite, each
+  paper weighted by how few of the works cite it; a paper cited by only
+  one work, or by half of them or more, links none. Louvain's method
+  splits the links into communities, and each of five works or more is
+  a group, at most eight, largest first. A group is named by its title
+  words as a subfield is by its words, laid out by classical MDS on the
+  distances between the groups' citation profiles, and joined to the
+  three whose citations are most alike. Its reading order is the ten
+  works its own works cite most, ordered as the topic's is, at one more
+  request per group. On 2026-11-18, the DOI of *Global warming and
+  recurrent mass bleaching of corals* gave four groups holding 197 of
+  its 201 works: *coral, reef, reefs, bleaching*, *marine, heatwaves,
+  climate*, *coral, microbiome, reef* and *climate, change, marine*.
+  *Attention Is All You Need* gave seven, among them *language, bert,
+  text*, *vision, transformer, image*, *diffusion, image, resolution* and
+  *protein, accurate, structure*.
 
 Citations tell which works build on a topic, not whether they are about
 it. A study that uses a method cites it as a review of the method does.
@@ -383,10 +402,6 @@ request:
   include papers from before 2015, which the map holds only as OpenAlex
   ids. Fetching their titles would let the reading order start with them,
   as a topic's reading order does.
-- **Subfields of a topic.** A topic's works could be grouped by the works
-  they cite, in the browser, into a small map of its own, with a card per
-  group. The three built maps would then be worked examples of what any
-  topic gives.
 - **Fresher facts.** Fees change every year. Rerunning `venues` and
   `build` refreshes them.
 

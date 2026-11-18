@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { runInThisContext } from 'node:vm';
 
-// docs/demo.playwright.js is one function expression, run on a Playwright page.
-const walk = (0, eval)(readFileSync(new URL('../docs/demo.playwright.js', import.meta.url), 'utf8'));
+// docs/demo.playwright.js is one function expression, which its Playwright
+// runner reads as text and evaluates in a vm, with no way to import a module.
+// The test evaluates it the same way: the one exception to the rule against
+// evaluating code from a string.
+const DEMO = new URL('../docs/demo.playwright.js', import.meta.url);
+const walk = runInThisContext(readFileSync(DEMO, 'utf8'), { filename: DEMO.pathname });
 
 // A page that records what the walk asks of it and draws nothing.
 const fakePage = (url) => {

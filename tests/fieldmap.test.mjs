@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import {
   FIELDS_URL, HEIGHT, WIDTH, afterText, candidates, citations, citedCounts, citersUrl, citingReviews, cleanDoi, coreWorks, entries,
   feeText, foundations, layout, licenceText, links, lookupUrl, mapUrl, mostCited, newPapers, newPapersUrl, newSince, ordered,
+  coupling, couplingVectors, groupNames, groupsOf, mds, nearestGroups, pickName, topicMap,
   otherFields, paperUrl, place, placedIn, placementText, readMap, recordsUrl, recurrence, reviewsUrl, sample, searchUrl, shortId, shortName,
   soft, steps, tally, titleTerms, toLookUp, topicAsk, topicCore, topicNew, topicReviews, topicSearch, venues, waiverText, yearBefore,
 } from '../fieldmap.js';
@@ -359,4 +360,169 @@ test('placement is stated as the share of held-back papers placed right', () => 
 
 test('the page reads the field index the build writes beside the maps', () => {
   assert.ok(read(`../${FIELDS_URL}`).some((f) => f.slug === SHIPPED.scope.slug));
+});
+
+// ---- A topic's groups ----------------------------------------------------
+
+const citing = (n, refs, title = `work ${n}`) => ({
+  id: `https://openalex.org/T${n}`, title, referenced_works: refs.map((r) => `https://openalex.org/${r}`),
+});
+
+// Cliques of works, each clique citing its own two papers, numbered on from `from`.
+const cliques = (sizes, from = 0) => sizes.flatMap((size, k) => Array.from({ length: size }, (_, i) =>
+  citing(from + sizes.slice(0, k).reduce((a, b) => a + b, 0) + i, [`R${k}a`, `R${k}b`], `clique${k} theme${k} ${i}`)));
+
+// Works citing nothing, numbered on from `from`, so a clique's papers are cited
+// by under half of all the works.
+const loners = (count, from) => Array.from({ length: count }, (_, i) => citing(from + i, []));
+
+test('a citation links works only when two to under half of them cite it', () => {
+  const works = [
+    citing(0, ['A', 'A', 'B', 'C']), citing(1, ['A', 'B']), citing(2, ['B']), citing(3, []), citing(4, []), citing(5, []),
+  ];
+  const [first, second, third, fourth] = couplingVectors(works);
+  assert.deepEqual([...first], [['A', 1]]);
+  assert.deepEqual([...second], [['A', 1]]);
+  assert.equal(third.size, 0);
+  assert.equal(fourth.size, 0);
+});
+
+test('a citation weighs more the fewer works cite it', () => {
+  const works = [citing(0, ['A', 'B']), citing(1, ['A', 'B']), citing(2, ['B']), ...[3, 4, 5, 6, 7].map((n) => citing(n, []))];
+  const [first] = couplingVectors(works);
+  const ratio = first.get('A') / first.get('B');
+  assert.ok(Math.abs(ratio - Math.log(8 / 2) / Math.log(8 / 3)) < 1e-9, String(ratio));
+  assert.ok(Math.abs(Math.hypot(...first.values()) - 1) < 1e-9);
+});
+
+test("two works' link is the cosine of their citations", () => {
+  const works = [citing(0, ['A', 'B']), citing(1, ['A', 'B']), citing(2, ['A']), citing(3, ['B', 'C']), citing(4, ['C']),
+    ...loners(6, 5)];
+  const links = coupling(couplingVectors(works));
+  const near = (m, expected) => [...m].every(([j, x]) => Math.abs(x - expected.get(j)) < 1e-9) && m.size === expected.size;
+  const a = Math.log(11 / 3);
+  const b = Math.log(11 / 3);
+  assert.ok(near(links[0], new Map([[1, 1], [2, a / Math.hypot(a, b)], [3, (b / Math.hypot(a, b)) * (b / Math.hypot(b, Math.log(11 / 2)))]])),
+    JSON.stringify([...links[0]]));
+  assert.equal(links[0].has(0), false);
+});
+
+test('works citing the same papers form a group, largest first', () => {
+  const works = [...cliques([5, 6]), citing(11, ['X']), citing(12, [])];
+  assert.deepEqual(groupsOf(couplingVectors(works)), [[5, 6, 7, 8, 9, 10], [0, 1, 2, 3, 4]]);
+});
+
+test('groups of the same size keep the order of their first work', () => {
+  const works = cliques([5, 5, 5]);
+  assert.deepEqual(groupsOf(couplingVectors(works)).map((g) => g[0]), [0, 5, 10]);
+});
+
+test('a group needs five works, and at most eight are kept', () => {
+  assert.deepEqual(groupsOf(couplingVectors(cliques([4, 5, 4, 4, 4]))), [[4, 5, 6, 7, 8]]);
+  assert.equal(groupsOf(couplingVectors(cliques([5, 5, 5, 5, 5, 5, 5, 5, 5]))).length, 8);
+});
+
+test('a weak tie between two groups does not merge them', () => {
+  const works = [...cliques([6, 6]), ...loners(13, 12)];
+  works[5] = citing(5, ['R0a', 'R0b', 'R1a']);
+  assert.deepEqual(groupsOf(couplingVectors(works)), [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11]]);
+});
+
+test('a group is merged level by level until no merge raises modularity', () => {
+  // Two pairs of cliques, each pair tied by a work citing both; Louvain's
+  // second level joins each pair, and no level joins the pairs.
+  const works = cliques([5, 5, 5, 5, 3]);
+  works.push(citing(23, ['R0a', 'R1a']), citing(24, ['R2a', 'R3a']));
+  assert.ok(groupsOf(couplingVectors(works)).every((g) => g.length >= 5));
+});
+
+test('Louvain merges small communities at a later level, and a group lists its works in order', () => {
+  // Eight cliques of three, interleaved: work i is in clique i % 8 and cites
+  // its clique's R and S, and the first of each clique cites the next
+  // clique's R too. The first level finds the cliques, the second joins them
+  // in pairs; on a ring every pairing ties, and the order of the links picks.
+  const works = [...Array.from({ length: 24 }, (_, i) => {
+    const c = i % 8;
+    return citing(i, [`R${c}`, `S${c}`, ...(i < 8 ? [`R${(c + 1) % 8}`] : [])]);
+  }), ...loners(24, 24)];
+  assert.deepEqual(groupsOf(couplingVectors(works)), [
+    [0, 7, 8, 15, 16, 23], [1, 2, 9, 10, 17, 18], [3, 4, 11, 12, 19, 20], [5, 6, 13, 14, 21, 22],
+  ]);
+});
+
+test('a work tied equally to two groups joins the first it is linked to', () => {
+  const works = [...cliques([5, 5]), citing(10, ['R0a', 'R1a']), ...loners(12, 11)];
+  assert.deepEqual(groupsOf(couplingVectors(works)), [[0, 1, 2, 3, 4, 10], [5, 6, 7, 8, 9]]);
+});
+
+test('nothing links works that share no citation, so no group forms', () => {
+  assert.deepEqual(groupsOf(couplingVectors([citing(0, ['A']), citing(1, ['B'])])), []);
+});
+
+test('a name takes five terms, skipping one inside a term already chosen', () => {
+  assert.deepEqual(pickName(['missing', 'missing data', 'data missing', 'a', 'b', 'c', 'd']), ['missing', 'a', 'b', 'c', 'd']);
+  assert.deepEqual(pickName(['data', 'missing data']), ['data']);
+  assert.deepEqual(pickName(['missing data', 'missing values']), ['missing data', 'missing values']);
+  assert.deepEqual(pickName(['a', 'b', 'c', 'd', 'e', 'f', 'g']), ['a', 'b', 'c', 'd', 'e']);
+});
+
+test('a group is named by the words its titles share and other groups lack', () => {
+  const stop = new Set(['of']);
+  const names = groupNames(stop, [
+    ['coral bleaching', 'coral bleaching heat', 'reef fish'],
+    ['heat waves', 'marine heat waves', 'ocean'],
+  ]);
+  // A tie is broken alphabetically, and a term inside a chosen one is skipped.
+  assert.deepEqual(names, [['bleaching', 'coral', 'fish', 'reef', 'heat'], ['heat waves', 'marine', 'ocean']]);
+  assert.deepEqual(groupNames(stop, [['solo title']]), [['solo', 'title']]);
+});
+
+test("a term's weight grows with the mean number of terms per group", () => {
+  // aaa: 3 here of 12 in all; bbb: 2 here, in no other group. At about 20
+  // terms per group, bbb scores more; at a far higher mean, aaa would.
+  const filler = (i) => ['aaa', ...Array.from({ length: 21 }, (_, j) => `f${i}x${j}`)];
+  const [name] = groupNames(new Set(), [['aaa', 'aaa', 'aaa', 'bbb', 'bbb'], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(filler)]);
+  assert.deepEqual(name, ['bbb', 'aaa']);
+});
+
+test('a term in two titles comes before a rarer term that scores more', () => {
+  const [name] = groupNames(new Set(), [['alpha beta', 'alpha gamma'], ['alpha delta', 'alpha epsilon', 'alpha zeta', 'alpha eta']]);
+  assert.deepEqual(name, ['alpha', 'beta', 'gamma']);
+});
+
+test('mds lays three points in a row along one axis and centres the other', () => {
+  assert.deepEqual(mds([[0, 1, 2], [1, 0, 1], [2, 1, 0]]), { x: [0, 0.5, 1], y: [0.5, 0.5, 0.5] });
+  assert.deepEqual(mds([[0]]), { x: [0.5], y: [0.5] });
+});
+
+test('mds spreads a triangle over both axes', () => {
+  const { x, y } = mds([[0, 1, 1], [1, 0, 1], [1, 1, 0]]);
+  assert.deepEqual([...x].sort(), [0, 0.5, 1]);
+  assert.deepEqual([...y].sort(), [0, 0, 1]);
+});
+
+test('each group is near the three it cites most alike, most first', () => {
+  const alike = [
+    [1, 0.2, 0.5, 0.1, 0.3],
+    [0.2, 1, 0, 0, 0],
+    [0.5, 0, 1, 0.5, 0],
+    [0.1, 0, 0.5, 1, 0],
+    [0.3, 0, 0, 0, 1],
+  ];
+  assert.deepEqual(nearestGroups(alike).map((n) => n.map((m) => m.id)), [[2, 4, 1], [0], [0, 3], [2, 0], [0]]);
+});
+
+test("a topic's map gives each group its name, size, place, nearest and works", () => {
+  const works = [...cliques([6, 5]), citing(11, ['R0a', 'R1a'], 'bridge'), ...loners(14, 12)];
+  const groups = topicMap(new Set(), works);
+  assert.deepEqual(groups.map((g) => [g.id, g.size, g.name[0], g.near]), [
+    [0, 6, 'clique0', [{ id: 1 }]], [1, 6, 'clique1', [{ id: 0 }]],
+  ]);
+  assert.deepEqual(groups.map((g) => [g.x, g.y]), [[0, 0.5], [1, 0.5]]);
+  assert.deepEqual(groups[1].works.map((w) => w.title)[0], 'clique1 theme1 0');
+});
+
+test('a group whose titles hold no word is named by its number', () => {
+  const works = [...cliques([5]).map((w) => ({ ...w, title: null })), ...loners(6, 5)];
+  assert.deepEqual(topicMap(new Set(), works)[0].name, ['group 1']);
 });

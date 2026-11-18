@@ -283,6 +283,214 @@ export const topicSearch = (search, text) => {
 // New papers on a topic: those from the last twelve months.
 export const yearBefore = (day) => `${Number(day.slice(0, 4)) - 1}${day.slice(4)}`;
 
+// ---- A topic's groups: works that cite the same papers --------------------
+
+// A group is shown when it holds at least five works, and at most eight are.
+const MIN_GROUP = 5;
+const MAX_GROUPS = 8;
+const NAME_TERMS = 5;
+const NEIGHBOURS = 3;
+// Modularity gains closer than this are a tie, so rounding moves no work.
+const TIE = 1e-12;
+const POWER_STEPS = 100;
+
+const total = (values) => values.reduce((a, b) => a + b, 0);
+
+const unit = (weights) => {
+  const norm = Math.hypot(...weights.values());
+  return new Map([...weights].map(([k, x]) => [k, x / norm]));
+};
+
+const cosine = (a, b) => total([...a].map(([k, x]) => x * (b.get(k) ?? 0)));
+
+// Each work's citations, weighted by how rare each is among the works, at unit
+// length. A work cited by only one of them links nothing, and one cited by
+// half or more links nearly everything, so both are left out.
+export const couplingVectors = (works) => {
+  const sets = works.map((w) => [...new Set(w.referenced_works.map(shortId))]);
+  const df = sets.flat().reduce((counts, r) => counts.set(r, (counts.get(r) ?? 0) + 1), new Map());
+  const shared = (r) => df.get(r) >= 2 && df.get(r) * 2 < works.length;
+  return sets.map((refs) => unit(new Map(refs.filter(shared).map((r) => [r, Math.log(works.length / df.get(r))]))));
+};
+
+// Each work's links: every other work it shares a citation with, by the
+// cosine of their vectors, summed over the citations they share.
+export const coupling = (vectors) => {
+  const citers = vectors.reduce((by, v, i) => {
+    v.forEach((x, r) => by.set(r, [...(by.get(r) ?? []), [i, x]]));
+    return by;
+  }, new Map());
+  const links = vectors.map(() => new Map());
+  citers.forEach((pairs) => pairs.forEach(([i, x]) => pairs.forEach(([j, y]) => {
+    if (i !== j) links[i].set(j, (links[i].get(j) ?? 0) + x * y);
+  })));
+  return links;
+};
+
+// ---- Louvain: communities that raise modularity, merged level by level ----
+
+const toCommunities = (graph, community, i) => [...graph.links[i]].reduce(
+  (weights, [j, x]) => weights.set(community[j], (weights.get(community[j]) ?? 0) + x), new Map());
+
+// Moves node i to the neighbouring community it gains most modularity in,
+// staying put on a tie; says whether it moved.
+const move = (graph, state, i) => {
+  const { community, tot, k, m2 } = state;
+  const from = community[i];
+  tot[from] -= k[i];
+  const weights = toCommunities(graph, community, i);
+  const gain = (c) => (weights.get(c) ?? 0) - (tot[c] * k[i]) / m2;
+  const beats = (c, best) => gain(c) > gain(best) + TIE; // mutation: equivalent — >= differs only when two gains differ by exactly TIE, which no test can arrange
+  const to = [...weights.keys()].reduce((best, c) => (beats(c, best) ? c : best), from);
+  community[i] = to;
+  tot[to] += k[i];
+  return to !== from;
+};
+
+// One level: every node moves until none gains. Null when none moved.
+const settle = (graph) => {
+  const k = graph.links.map((links, i) => graph.self[i] + total([...links.values()]));
+  const state = { community: k.map((_, i) => i), tot: [...k], k, m2: total(k) };
+  const pass = () => k.map((_, i) => move(graph, state, i)).some(Boolean);
+  let moved = false;
+  while (state.m2 && pass()) moved = true;
+  return moved ? state.community : null;
+};
+
+// The next level's graph: one node per community, its inner links as a self loop.
+const aggregate = (graph, community) => {
+  const ids = [...new Set(community)];
+  const index = new Map(ids.map((c, a) => [c, a]));
+  const next = { links: ids.map(() => new Map()), self: ids.map(() => 0), members: ids.map(() => []) };
+  graph.links.forEach((links, i) => {
+    const a = index.get(community[i]);
+    next.self[a] += graph.self[i];
+    next.members[a].push(...graph.members[i]);
+    links.forEach((x, j) => {
+      const b = index.get(community[j]);
+      if (a === b) next.self[a] += x;
+      else next.links[a].set(b, (next.links[a].get(b) ?? 0) + x);
+    });
+  });
+  return next;
+};
+
+const louvain = (graph) => {
+  const community = settle(graph);
+  return community ? louvain(aggregate(graph, community)) : graph.members;
+};
+
+// The works' groups, as lists of their indices: Louvain communities by shared
+// citations, those of five or more works, largest first, at most eight.
+// Louvain returns its communities in the order of their first work, and a
+// stable sort keeps that order among groups of one size.
+export const groupsOf = (vectors) => louvain({
+  links: coupling(vectors), self: vectors.map(() => 0), members: vectors.map((_, i) => [i]),
+}).filter((g) => g.length >= MIN_GROUP).map((g) => g.toSorted((a, b) => a - b))
+  .toSorted((a, b) => b.length - a.length).slice(0, MAX_GROUPS);
+
+// ---- A group's name: the title terms that set it apart --------------------
+
+const overlaps = (term, chosen) => {
+  const words = term.split(' ');
+  return chosen.some((c) => {
+    const other = c.split(' ');
+    return words.every((w) => other.includes(w)) || other.every((w) => words.includes(w));
+  });
+};
+
+// The first five terms, skipping one whose words overlap a term already chosen.
+export const pickName = (ranked) =>
+  ranked.reduce((chosen, t) => (chosen.length < NAME_TERMS && !overlaps(t, chosen) ? [...chosen, t] : chosen), []);
+
+// The maps' values summed by key. Its sums are read only as ratios: a term's
+// share of all terms, and the cosine between two groups' centres.
+const summed = (maps) => maps.reduce((sum, m) => {
+  m.forEach((x, k) => sum.set(k, (sum.get(k) ?? 0) + x)); // mutation: equivalent — negating every sum leaves each ratio read from them unchanged
+  return sum;
+}, new Map());
+
+const termCounts = (stopWords, titles) => titles.flatMap((t) => titleTerms(stopWords, t ?? ''))
+  .reduce((counts, t) => counts.set(t, (counts.get(t) ?? 0) + 1), new Map());
+
+// Each group's name, by class-based TF-IDF as the pipeline names a subfield:
+// a term's count in the group, times log(1 + the mean terms per group / the
+// term's count in every group); the pipeline's division by the group's size
+// changes no order within a group. A term in two or more of the group's
+// titles comes first, then the higher score, then the alphabet.
+export const groupNames = (stopWords, titlesByGroup) => {
+  const counts = titlesByGroup.map((titles) => termCounts(stopWords, titles));
+  const all = summed(counts);
+  const mean = total([...all.values()]) / counts.length;
+  return counts.map((c) => {
+    const score = (t) => c.get(t) * Math.log1p(mean / all.get(t));
+    const shared = (t) => Number(c.get(t) > 1);
+    const ranked = [...c.keys()].toSorted((a, b) => shared(b) - shared(a) || score(b) - score(a) || (a < b ? -1 : 1)); // mutation: equivalent — a and b are distinct Map keys, so a <= b and a < b agree
+    return pickName(ranked);
+  });
+};
+
+// ---- A topic's small map ----------------------------------------------------
+
+const centroid = (vectors) => unit(summed(vectors));
+
+const times = (m, v) => m.map((row) => total(row.map((x, j) => x * v[j])));
+
+const normed = (v) => {
+  const norm = Math.hypot(...v);
+  return norm ? v.map((x) => x / norm) : v;
+};
+
+const leading = (m) => {
+  const v = Array.from({ length: POWER_STEPS }).reduce((u) => normed(times(m, u)), normed(m.map((_, i) => i + 1)));
+  return { v, lambda: total(times(m, v).map((x, i) => x * v[i])) };
+};
+
+const deflate = (m, { v, lambda }) => m.map((row, i) => row.map((x, j) => x - lambda * v[i] * v[j]));
+
+const spread = (xs) => {
+  const lo = Math.min(...xs);
+  const span = Math.max(...xs) - lo;
+  return xs.map((x) => (span ? (x - lo) / span : 0.5));
+};
+
+// An axis whose eigenvalue is rounding beside the largest spreads nothing: its
+// points sit at the middle.
+const axis = ({ v, lambda }, largest) => (lambda > largest * TIE ? spread(v) : v.map(() => 0.5)); // mutation: equivalent — lambda equals largest * TIE only when both are 0, for one group, whose spread is 0.5 too
+
+// Classical MDS: the two leading eigenvectors of the double-centred squared
+// distances, by power iteration, each axis scaled to span 0 to 1.
+export const mds = (d) => {
+  const sq = d.map((row) => row.map((x) => x * x));
+  const mean = sq.map((row) => total(row) / d.length);
+  const grand = total(mean) / d.length;
+  const b = sq.map((row, i) => row.map((x, j) => -0.5 * (x - mean[i] - mean[j] + grand)));
+  const first = leading(b);
+  const second = leading(deflate(b, first));
+  return { x: axis(first, Math.abs(first.lambda)), y: axis(second, Math.abs(first.lambda)) };
+};
+
+// Each group's three most alike by citations, most alike first, and on a tie
+// the first group first, which the stable sort keeps.
+export const nearestGroups = (alike) => alike.map((row, i) => row.map((s, id) => ({ id, s }))
+  .filter(({ id, s }) => id !== i && s > 0).toSorted((a, b) => b.s - a.s)
+  .slice(0, NEIGHBOURS).map(({ id }) => ({ id })));
+
+// A topic's groups as a field map's subfields are: name, size, place and
+// nearest, with the works in each.
+export const topicMap = (stopWords, works) => {
+  const vectors = couplingVectors(works);
+  const groups = groupsOf(vectors);
+  const centres = groups.map((g) => centroid(g.map((i) => vectors[i])));
+  const alike = centres.map((a) => centres.map((b) => cosine(a, b)));
+  const { x, y } = mds(alike.map((row) => row.map((s) => Math.sqrt(Math.max(0, 2 - 2 * s)))));
+  const names = groupNames(stopWords, groups.map((g) => g.map((i) => works[i].title)));
+  const near = nearestGroups(alike);
+  return groups.map((g, id) => ({
+    id, name: names[id].length ? names[id] : [`group ${id + 1}`], size: g.length, x: x[id], y: y[id], near: near[id], works: g.map((i) => works[i]),
+  }));
+};
+
 // ---- Reading order, as the page words it --------------------------------
 
 const series = (items) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`

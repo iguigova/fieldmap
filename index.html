@@ -22,7 +22,7 @@
   #status.error { color: var(--link); font-weight: 700; }
   figure { margin: 0; }
   .scroller { overflow-x: auto; border-radius: 4px; }
-  #map { width: 100%; min-width: 720px; height: auto; display: block; background: var(--panel); }
+  #map, .topic-map { width: 100%; min-width: 720px; height: auto; display: block; background: var(--panel); }
   svg a:focus-visible circle { stroke: var(--title); stroke-width: 4; }
   .link { stroke: var(--muted); stroke-width: 1; opacity: 0.3; }
   .link.lit { stroke: var(--link); stroke-width: 2.5; opacity: 1; }
@@ -74,14 +74,16 @@
       <h2>Any topic</h2>
       <div>
         <p>For a topic in any field, type it, or a paper's DOI, and OpenAlex gives its reading path:
-          reviews to start with, a reading order, its most-cited papers and its new ones.</p>
+          reviews to start with, a reading order, its most-cited papers and its new ones. Its works
+          are grouped by the papers they cite, on a small map with a reading order for each group.</p>
         <form id="topic-form" class="controls">
           <label for="topic">A topic or a DOI</label>
           <input id="topic" type="search" name="topic" autocomplete="off">
           <button class="plain" type="submit">Build a reading path</button>
         </form>
         <p class="meta">Your browser asks OpenAlex directly. A topic uses about 13 of the 1,000 credits
-          OpenAlex gives each connection a day for free, and a DOI about 5.</p>
+          OpenAlex gives each connection a day for free, and a DOI about 5, plus one for each of its
+          groups, at most eight.</p>
         <p id="topic-status" role="status" aria-live="polite"></p>
         <div id="topic-path"></div>
       </div>
@@ -164,6 +166,10 @@
           way. Its reviews are those a topic's search found, then any other review it holds or that cites
           at least two of the five works it cites most, and its new papers are the works from the last twelve months citing
           at least two of those five. Either list puts the works citing more of the five first.</p>
+        <p>A topic's groups are the communities its works form when two works are linked by the papers
+          they both cite, each weighted by how few of the works cite it; Louvain's method finds them.
+          A group is shown when it holds five works or more, at most eight. Each is named by the title
+          words that set it apart, and its reading order is the ten works its own works cite most.</p>
         <p>The groups come from k-means on each paper's words and citations, set to <span id="groups"></span> groups.
           Every step and setting is in the <a href="https://github.com/iguigova/fieldmap#method">method</a>.
           The code was written with Claude, an AI assistant.</p>
@@ -179,7 +185,8 @@ import {
   FIELDS_URL, HEIGHT, WIDTH, afterText, candidates, citations, citedCounts, citersUrl, citingReviews, coreWorks, entries,
   feeText, foundations, layout, licenceText, links, mapUrl, mostCited, newPapers, newPapersUrl, newSince, ordered,
   otherFields, paperUrl, place, placementText, readMap, recordsUrl, recurrence, reviewsUrl, sample, searchUrl, shortId,
-  soft, steps, tally, toLookUp, topicAsk, topicCore, topicNew, topicReviews, topicSearch, venues, waiverText, yearBefore,
+  soft, steps, tally, toLookUp, topicAsk, topicCore, topicMap, topicNew, topicReviews, topicSearch, venues, waiverText,
+  yearBefore,
 } from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -233,12 +240,13 @@ const line = (byId, { a, b }) => svgEl('line', {
   x1: byId.get(a).x, y1: byId.get(a).y, x2: byId.get(b).x, y2: byId.get(b).y,
 });
 
-const light = (c, on) => c.near.forEach((n) =>
-  document.querySelector(`.link[data-pair="${pair(c.id, n.id)}"]`).classList.toggle('lit', on));
+// A map's lines are looked up in that map's own svg: a topic's map numbers its groups from 0 too.
+const light = (svg, c, on) => c.near.forEach((n) =>
+  svg.querySelector(`.link[data-pair="${pair(c.id, n.id)}"]`).classList.toggle('lit', on));
 
-const lighting = (link, c) => {
-  ['mouseenter', 'focus'].forEach((e) => link.addEventListener(e, () => light(c, true)));
-  ['mouseleave', 'blur'].forEach((e) => link.addEventListener(e, () => light(c, false)));
+const lighting = (svg, link, c) => {
+  ['mouseenter', 'focus'].forEach((e) => link.addEventListener(e, () => light(svg, c, true)));
+  ['mouseleave', 'blur'].forEach((e) => link.addEventListener(e, () => light(svg, c, false)));
   return link;
 };
 
@@ -246,7 +254,7 @@ const drawMap = (counts) => {
   const byId = new Map(discs.map((d) => [d.c.id, d]));
   const lines = svgEl('g', { 'aria-hidden': 'true' });
   lines.append(...links(fieldMap.clusters).map((pair) => line(byId, pair)));
-  $('map').replaceChildren(lines, ...discs.map((d) => lighting(bubble(d, counts), d.c)));
+  $('map').replaceChildren(lines, ...discs.map((d) => lighting($('map'), bubble(d, counts), d.c)));
   $('key').hidden = !counts;
 };
 
@@ -455,10 +463,73 @@ const found = async (ask) => {
 const pathOf = async (works, since) => {
   const counts = citedCounts(works);
   const core = topicCore(counts);
-  if (!core.length) return { counts, core, records: [], citing: [], fresh: [] };
-  const [records, citing, fresh] = await Promise.all(
-    [recordsUrl(candidates(counts)), reviewsUrl(core), newPapersUrl(core, since, today())].map(getJson));
-  return { counts, core, records: records.results, citing: citing.results, fresh: fresh.results };
+  if (!core.length) return { counts, core, records: [], citing: [], fresh: [], groups: [] };
+  const groups = topicMap(fieldMap.stopWords, works).map((g) => ({ ...g, counts: citedCounts(g.works) }));
+  const [records, citing, fresh, ...groupRecords] = await Promise.all([
+    recordsUrl(candidates(counts)), reviewsUrl(core), newPapersUrl(core, since, today()),
+    ...groups.map((g) => recordsUrl(candidates(g.counts))),
+  ].map(getJson));
+  return {
+    counts, core, records: records.results, citing: citing.results, fresh: fresh.results,
+    groups: groups.map((g, k) => ({ ...g, records: groupRecords[k].results })),
+  };
+};
+
+// ---- A topic's groups: a small map, and a card for each ------------------
+
+const worksOf = (n) => `${n} ${n === 1 ? 'work' : 'works'}`;
+
+const groupBubble = ({ c, short, x, y, r }) => {
+  const words = `${c.name.slice(0, 3).join(', ')}: ${worksOf(c.size)}`;
+  const link = svgEl('a', { href: `#t${c.id}`, 'aria-label': words });
+  link.append(svgEl('title', {}, words), svgEl('circle', { class: 'bubble', cx: x, cy: y, r }),
+    svgEl('text', { class: 'label', x, y: y + r + 15, 'text-anchor': 'middle' }, short));
+  return link;
+};
+
+const groupMap = (groups, found) => {
+  const svg = svgEl('svg', { class: 'topic-map', role: 'group', 'aria-labelledby': 'topic-map-caption',
+    viewBox: `0 0 ${WIDTH} ${HEIGHT}` });
+  const discs = layout(groups);
+  const byId = new Map(discs.map((d) => [d.c.id, d]));
+  const lines = svgEl('g', { 'aria-hidden': 'true' });
+  lines.append(...links(groups).map((p) => line(byId, p)));
+  svg.append(lines, ...discs.map((d) => lighting(svg, groupBubble(d), d.c)));
+  const scroller = el('div', { class: 'scroller', tabindex: '0', role: 'region',
+    'aria-label': "Map of the topic's groups, scrolls sideways on a narrow screen" });
+  scroller.append(svg);
+  const figure = el('figure');
+  const grouped = groups.reduce((n, g) => n + g.size, 0);
+  figure.append(scroller, el('figcaption', { id: 'topic-map-caption' },
+    'Each circle is a group of works that cite the same papers, sized by its number of works. Circles close ' +
+    'together cite alike, and a line joins each group to the three it cites most alike. ' +
+    `${grouped} of the ${worksOf(found)} found are in a group of five or more.`));
+  return figure;
+};
+
+const alikeGroups = (groups, g) => {
+  const line = el('div', { class: 'meta' }, 'Cites most alike: ');
+  g.near.forEach((n, i) => line.append(i ? '; ' : '', el('a', { href: `#t${n.id}` }, groups[n.id].name.slice(0, 3).join(', '))));
+  return line;
+};
+
+const groupCard = (groups) => (g) => {
+  const li = el('li', { id: `t${g.id}` });
+  li.append(el('div', { class: 'name' }, g.name.join(', ')), el('div', { class: 'meta' }, worksOf(g.size)),
+    ...(g.near.length ? [alikeGroups(groups, g)] : []),
+    fold('Reading order', listOr(steps(ordered(foundations(g.counts, g.records)), g.counts),
+      step('in this group'), 'None of its works cites another work.')),
+    fold('Most-cited works', listOf(mostCited(g.works), starter)));
+  return li;
+};
+
+const groupsPart = (groups, found) => {
+  if (!groups.length) return el('p', { class: 'meta' }, 'Its works share too few citations to form a group of five.');
+  const wrap = el('div');
+  const cards = el('ol', { class: 'subfields' });
+  cards.append(...groups.map(groupCard(groups)));
+  wrap.append(groupMap(groups, found), cards);
+  return wrap;
 };
 
 const part = (heading, content) => [el('h4', {}, heading), content];
@@ -471,7 +542,8 @@ const drawPath = ({ label, works, searched }, path, since) => $('topic-path').re
     step('found for it'), 'None of the works found cites another work.')),
   ...part('Most-cited papers', listOf(mostCited(works), starter)),
   ...part(`New papers, since ${since}`,
-    listOr(topicNew(path.core, path.fresh), fresh, 'OpenAlex has no new paper citing two of its core works.')));
+    listOr(topicNew(path.core, path.fresh), fresh, 'OpenAlex has no new paper citing two of its core works.')),
+  ...part('Its groups, by the works they cite', groupsPart(path.groups, works.length)));
 
 // A topic asked while an earlier one is still being read replaces it.
 const readTopic = async (text) => {
