@@ -179,11 +179,12 @@ the package without being about it.
 - **New papers:** the page asks OpenAlex, when the list is opened, for
   the 50 newest works dated from the map's last year to today that cite
   any of the subfield's five core works, and shows the first five that
-  place in that subfield by what they cite. On 2026-11-17, asked without
-  the end date, every subfield of the three maps showed five; of the
-  works asked for, 1,466 of 2,000 placed back in biostatistics, 1,636 of
-  1,969 in epidemiology and 1,394 of 2,000 in psychology methods. Many apply a method rather than
-  develop it, such as a cohort study of mortality after heart-valve
+  place in that subfield by what they cite. On 2026-11-18, every
+  subfield of the three maps showed five; of the works asked for, 1,464
+  of 2,000 placed back in biostatistics, 1,636 of 1,969 in epidemiology
+  and 1,394 of 2,000 in psychology methods. `node docs/new_papers.mjs
+  <slug>…` asks again and prints these counts. Many apply a method rather
+  than develop it, such as a cohort study of mortality after heart-valve
   replacement under biostatistics' joint-modelling subfield.
 - **Who:** the authors, institutions and funders OpenAlex records on a
   subfield's papers from 2021 to 2025. Nearly all of those papers name an
@@ -341,9 +342,9 @@ uv run fieldmap check      # check the field's subfields are found
 uv run fieldmap stability  # rerun the clustering at other k and seeds
 ```
 
-Each command takes `--field <slug>`, biostatistics by default. Without
-an API key, OpenAlex gives each address a free daily budget of about
-1,000 list requests; downloading a field takes one request per 200
+Each command takes `--field <slug>`, biostatistics by default. A list
+request costs one of OpenAlex's free daily credits, as *A topic's
+reading path* above says; downloading a field takes one request per 200
 papers and one per 100 for their authors, so a field of 20,000 papers
 takes about 300.
 
@@ -353,13 +354,15 @@ shared `brand.css` and `brand.js` from the folder above, so serve that
 folder to run it locally and open `/fieldmap/`.
 
 Tests: `uv run pytest` for the pipeline, at full line coverage, and
-`npm test` for `fieldmap.js`; `npm run coverage` runs the same tests and
-fails below full line coverage. Lint: `uv run ruff check src tests`.
+`npm test` for `fieldmap.js` and the scripts in `docs/`; `npm run
+coverage` runs the same tests and fails below full line coverage of
+`fieldmap.js`. Lint: `uv run ruff check src tests`.
 
-The demo GIF: serve the folder above at `http://127.0.0.1:8765/` and run
-`docs/demo.playwright.js` through a Playwright page started in that folder.
-It records frames into `docs/frames/`, and `docs/make_demo.sh` turns them
-into `docs/demo.gif`.
+The demo GIF: serve the folder above on any port, open it in a
+Playwright page started in that folder, and run `docs/demo.playwright.js`
+through that page. It records frames into `docs/frames/`, and
+`docs/make_demo.sh` turns them into `docs/demo.gif`. Its walk reads one
+topic's reading path, so it uses about 13 OpenAlex credits.
 
 ## Extend it
 

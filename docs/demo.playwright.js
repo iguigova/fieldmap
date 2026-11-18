@@ -1,10 +1,13 @@
 // Records the README's demo as numbered PNG frames, one per tenth of a second
 // of the finished GIF. Run it through a Playwright `page` started in the site
-// root, with that folder served at BASE; FRAMES is relative to it and starts
-// empty. docs/make_demo.sh turns the frames into the GIF.
+// root and already open at that folder's served address, whatever its port;
+// FRAMES is relative to the site root and starts empty. The walk reads one
+// topic's path, which costs about 13 of OpenAlex's free daily credits.
+// docs/make_demo.sh turns the frames into the GIF.
 async (page) => {
-  const BASE = 'http://127.0.0.1:8765/fieldmap/';
+  const BASE = new URL('/fieldmap/', page.url()).href;
   const FRAMES = 'fieldmap/docs/frames';
+  const TOPIC = 'missing data imputation';
 
   let n = 0;
   const shot = async () => page.screenshot({ path: `${FRAMES}/f${String(n++).padStart(4, '0')}.png` });
@@ -74,6 +77,14 @@ async (page) => {
   await hold(14);
   await click('#lists details summary');            // a gap's papers to start with
   await hold(30);
+  await scrollTo('#topic-form', 16, 120);           // any topic's reading path
+  await click('#topic');
+  for (const ch of TOPIC) { await page.locator('#topic').press(ch === ' ' ? 'Space' : ch); await shot(); }
+  await click('#topic-form button');
+  await page.waitForSelector('#topic-path h3', { timeout: 60000 });
+  await hold(6);
+  await scrollTo('#topic-path', 14, 12);
+  await hold(34);
   await scrollTo('header', 16, 40);
   await click('.theme-switch');                     // and in the dark
   await hold(10);

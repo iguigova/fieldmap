@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import {
   FIELDS_URL, HEIGHT, WIDTH, afterText, candidates, citations, citedCounts, citersUrl, citingReviews, cleanDoi, coreWorks, entries,
   feeText, foundations, layout, licenceText, links, lookupUrl, mapUrl, mostCited, newPapers, newPapersUrl, newSince, ordered,
-  otherFields, paperUrl, place, placementText, readMap, recordsUrl, recurrence, reviewsUrl, sample, searchUrl, shortId, shortName,
+  otherFields, paperUrl, place, placedIn, placementText, readMap, recordsUrl, recurrence, reviewsUrl, sample, searchUrl, shortId, shortName,
   soft, steps, tally, titleTerms, toLookUp, topicAsk, topicCore, topicNew, topicReviews, topicSearch, venues, waiverText, yearBefore,
 } from '../fieldmap.js';
 
@@ -227,6 +227,13 @@ test('a new paper is kept when it places in the subfield, up to five', () => {
   const kept = newPapers(FIELD_MAP, FIELD_MAP.clusters[0], works);
   assert.deepEqual(kept.map((p) => p.title), ['new 1', 'new 2', 'new 3', 'new 4', 'new 5']);
   assert.deepEqual(kept[0], { doi: '10.1/n1', title: 'new 1', date: '2026-11-01' });
+});
+
+test('the works placed in a subfield are those whose citations pick it', () => {
+  const work = (n, refs) => ({ title: `w${n}`, referenced_works: refs.map((r) => `https://openalex.org/${r}`) });
+  const works = [work(0, ['W1']), work(1, ['W3']), work(2, []), work(3, ['W2', 'W3'])];
+  assert.deepEqual(placedIn(FIELD_MAP, FIELD_MAP.clusters[0], works).map((w) => w.title), ['w0']);
+  assert.deepEqual(placedIn(FIELD_MAP, FIELD_MAP.clusters[1], works).map((w) => w.title), ['w1', 'w3']);
 });
 
 for (const c of READING_CASES) {

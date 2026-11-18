@@ -16,7 +16,7 @@ const SEPARATOR = /[,|]/;
 // limit on OR operators.
 const CORE = 5;
 const ASKED = 50;
-const SHOWN = 5;
+export const SHOWN = 5;
 // A topic's search is looser than a subfield's profile, so a work citing it
 // is kept when it cites at least two of its core works.
 const ON_TOPIC = 2;
@@ -164,16 +164,16 @@ const dated = (w) => ({ doi: cleanDoi(w.doi), title: w.title, date: w.publicatio
 
 const cited = (w) => ({ doi: cleanDoi(w.doi), title: w.title, year: w.publication_year, cites: w.cited_by_count });
 
-const placesIn = (fieldMap, cluster) => (w) => byCitations(fieldMap, w.referenced_works.map(shortId)) === cluster.id;
+// The works OpenAlex returned that place in the cluster by what they cite.
+export const placedIn = (fieldMap, cluster, works) =>
+  works.filter((w) => byCitations(fieldMap, w.referenced_works.map(shortId)) === cluster.id);
 
-// The new works OpenAlex returned that place in the cluster by what they cite.
-export const newPapers = (fieldMap, cluster, works) =>
-  works.filter(placesIn(fieldMap, cluster)).slice(0, SHOWN).map(dated);
+export const newPapers = (fieldMap, cluster, works) => placedIn(fieldMap, cluster, works).slice(0, SHOWN).map(dated);
 
 // The reviews OpenAlex returned that place in the cluster, less the map's own.
 export const citingReviews = (fieldMap, cluster, works) => {
   const known = new Set(cluster.reviews.map((r) => r.doi));
-  return works.filter(placesIn(fieldMap, cluster)).map(cited)
+  return placedIn(fieldMap, cluster, works).map(cited)
     .filter((r) => !(r.doi && known.has(r.doi))).slice(0, SHOWN);
 };
 
