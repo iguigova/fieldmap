@@ -6,7 +6,7 @@ import {
   FIELDS_URL, HEIGHT, WIDTH, afterText, candidates, citations, citedCounts, citersUrl, citingReviews, cleanDoi, coreWorks, entries,
   feeText, foundations, layout, licenceText, links, lookupUrl, mapUrl, mostCited, newPapers, newPapersUrl, newSince, ordered,
   coupling, couplingVectors, groupNames, groupsOf, mds, nearestGroups, pickName, topicMap,
-  otherFields, paperUrl, place, placedIn, placementText, readMap, recordsUrl, recurrence, reviewsUrl, sample, searchUrl, shortId, shortName,
+  otherFields, paperUrl, place, placedIn, placementText, readMap, recordsUrl, recurrence, refusal, reviewsUrl, sample, searchUrl, shortId, shortName,
   soft, steps, tally, titleTerms, toLookUp, topicAsk, topicCore, topicNew, topicReviews, topicSearch, venues, waiverText, yearBefore,
 } from '../fieldmap.js';
 
@@ -520,4 +520,14 @@ test("a topic's map gives each group its name, size, place, nearest and works", 
 test('a group whose titles hold no word is named by its number', () => {
   const works = [...cliques([5]).map((w) => ({ ...w, title: null })), ...loners(6, 5)];
   assert.deepEqual(topicMap(new Set(), works)[0].name, ['group 1']);
+});
+
+test('a refusal says whether OpenAlex is busy or out of credits for today', () => {
+  const at = 'https://api.openalex.org/works?search=x';
+  assert.equal(refusal({ url: at, status: 503, remaining: '806' }), 'HTTP 503: OpenAlex is busy, try again in a minute');
+  assert.equal(refusal({ url: at, status: 429, remaining: null }), 'HTTP 429: OpenAlex is busy, try again in a minute');
+  assert.equal(refusal({ url: at, status: 429, remaining: '0' }),
+    "HTTP 429: today's free OpenAlex credits are spent until midnight UTC");
+  assert.equal(refusal({ url: at, status: 404, remaining: '806' }), 'HTTP 404');
+  assert.equal(refusal({ url: 'data/biostatistics.json', status: 503, remaining: '0' }), 'HTTP 503');
 });

@@ -182,11 +182,11 @@
 
 <script type="module">
 import {
-  FIELDS_URL, HEIGHT, WIDTH, afterText, candidates, citations, citedCounts, citersUrl, citingReviews, coreWorks, entries,
-  feeText, foundations, layout, licenceText, links, mapUrl, mostCited, newPapers, newPapersUrl, newSince, ordered,
-  otherFields, paperUrl, place, placementText, readMap, recordsUrl, recurrence, reviewsUrl, sample, searchUrl, shortId,
-  soft, steps, tally, toLookUp, topicAsk, topicCore, topicMap, topicNew, topicReviews, topicSearch, venues, waiverText,
-  yearBefore,
+  FIELDS_URL, HEIGHT, WIDTH, afterText, candidates, citations, citedCounts, citersUrl, citingReviews, coreWorks,
+  entries, feeText, foundations, layout, licenceText, links, mapUrl, mostCited, newPapers, newPapersUrl, newSince,
+  ordered, otherFields, paperUrl, place, placementText, readMap, recordsUrl, recurrence, refusal, reviewsUrl, sample,
+  searchUrl, shortId, soft, steps, tally, toLookUp, topicAsk, topicCore, topicMap, topicNew, topicReviews,
+  topicSearch, venues, waiverText, yearBefore,
 } from './fieldmap.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -213,7 +213,8 @@ const svgEl = (tag, attrs = {}, text) => {
 };
 const getJson = async (url) => {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const remaining = response.headers.get('x-ratelimit-remaining');
+  if (!response.ok) throw new Error(refusal({ url, status: response.status, remaining }));
   return response.json();
 };
 const today = () => new Date().toISOString().slice(0, 10);

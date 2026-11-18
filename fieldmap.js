@@ -57,6 +57,19 @@ export const sample = (fieldMap) => [...fieldMap.clusters]
   .flatMap((c) => c.starters.slice(0, SAMPLE_PER_CLUSTER))
   .map(({ doi, title }) => ({ doi, title }));
 
+// ---- A refused request, in the reader's words -----------------------------
+
+// OpenAlex answers 429 when a connection's free daily credits are spent or it
+// pauses keyless search, and 503 while it recovers from load; its remaining
+// credits tell the two apart, and they renew at midnight UTC.
+const BUSY = [429, 503];
+
+export const refusal = ({ url, status, remaining }) => {
+  if (!url.startsWith(OPENALEX)) return `HTTP ${status}`;
+  if (remaining === '0') return `HTTP ${status}: today's free OpenAlex credits are spent until midnight UTC`;
+  return BUSY.includes(status) ? `HTTP ${status}: OpenAlex is busy, try again in a minute` : `HTTP ${status}`;
+};
+
 // ---- Citations: what a paper off the map cites, from OpenAlex ------------
 
 export const shortId = (url) => url.slice(url.lastIndexOf('/') + 1);
