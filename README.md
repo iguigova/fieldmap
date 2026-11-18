@@ -96,18 +96,22 @@ takes 13 and a DOI 5, plus one for each of its groups.
   paper weighted by how few of the works cite it; a paper cited by only
   one work, or by half of them or more, links none. Louvain's method
   splits the links into communities, and each of five works or more is
-  a group, at most eight, largest first. A group is named by its title
-  words as a subfield is by its words, laid out by classical MDS on the
-  distances between the groups' citation profiles, and joined to the
-  three whose citations are most alike. Its reading order is the ten
-  works its own works cite most, ordered as the topic's is, at one more
-  request per group. On 2026-11-18, the DOI of *Global warming and
-  recurrent mass bleaching of corals* gave four groups holding 197 of
-  its 201 works: *coral, reef, reefs, bleaching*, *marine, heatwaves,
-  climate*, *coral, microbiome, reef* and *climate, change, marine*.
-  *Attention Is All You Need* gave seven, among them *language, bert,
-  text*, *vision, transformer, image*, *diffusion, image, resolution* and
-  *protein, accurate, structure*.
+  a group, at most eight, largest first. A group is named by up to five
+  title terms, single words or pairs, those in two or more of its
+  titles first. Each term scores its count in the group times the log
+  of the works over those whose title holds it, so a word in every
+  title, such as the topic's own, names no group. The groups are laid
+  out by classical MDS on the distances between their citation profiles, and
+  each is joined to the three whose citations are most alike. A group's
+  reading order is the ten works its own works cite most, ordered as
+  the topic's is, at one more request per group. On 2026-11-18, the DOI
+  of *Global warming and recurrent mass bleaching of corals* gave four
+  groups holding 197 of its 201 works: *coral, reefs, reef*,
+  *heatwaves, marine, climate*, *coral, microbiome, reef building* and
+  *climate, change, earth*. *Attention Is All You Need* gave seven,
+  holding all 201 of its works, among them *language, bert, text*,
+  *vision, transformer, image*, *large language, chatgpt, gemini*,
+  *diffusion, image, resolution* and *protein, accurate, structure*.
 
 Citations tell which works build on a topic, not whether they are about
 it. A study that uses a method cites it as a review of the method does.
@@ -381,7 +385,8 @@ The demo GIF: serve the folder above on any port, open it in a
 Playwright page started in that folder, and run `docs/demo.playwright.js`
 through that page. It records frames into `docs/frames/`, and
 `docs/make_demo.sh` turns them into `docs/demo.gif`. Its walk reads one
-topic's reading path, so it uses about 13 OpenAlex credits.
+topic's reading path and its groups, so it uses about 20 OpenAlex
+credits.
 
 ## Extend it
 

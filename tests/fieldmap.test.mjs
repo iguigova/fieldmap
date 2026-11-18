@@ -467,27 +467,22 @@ test('a name takes five terms, skipping one inside a term already chosen', () =>
 });
 
 test('a group is named by the words its titles share and other groups lack', () => {
-  const stop = new Set(['of']);
-  const names = groupNames(stop, [
-    ['coral bleaching', 'coral bleaching heat', 'reef fish'],
-    ['heat waves', 'marine heat waves', 'ocean'],
-  ]);
+  const titles = ['coral bleaching', 'coral bleaching heat', 'reef fish', 'heat waves', 'marine of heat waves', 'ocean'];
   // A tie is broken alphabetically, and a term inside a chosen one is skipped.
-  assert.deepEqual(names, [['bleaching', 'coral', 'fish', 'reef', 'heat'], ['heat waves', 'marine', 'ocean']]);
-  assert.deepEqual(groupNames(stop, [['solo title']]), [['solo', 'title']]);
+  assert.deepEqual(groupNames(new Set(['of']), titles, [[0, 1, 2], [3, 4, 5]]),
+    [['bleaching', 'coral', 'fish', 'reef', 'heat'], ['heat waves', 'marine', 'ocean']]);
 });
 
-test("a term's weight grows with the mean number of terms per group", () => {
-  // aaa: 3 here of 12 in all; bbb: 2 here, in no other group. At about 20
-  // terms per group, bbb scores more; at a far higher mean, aaa would.
-  const filler = (i) => ['aaa', ...Array.from({ length: 21 }, (_, j) => `f${i}x${j}`)];
-  const [name] = groupNames(new Set(), [['aaa', 'aaa', 'aaa', 'bbb', 'bbb'], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(filler)]);
-  assert.deepEqual(name, ['bbb', 'aaa']);
+test('a word in every title is in no name', () => {
+  const titles = ['alpha beta', 'gamma alpha', 'alpha delta', 'epsilon alpha'];
+  assert.deepEqual(groupNames(new Set(), titles, [[0, 1], [2, 3]]), [['alpha beta', 'gamma'], ['alpha delta', 'epsilon']]);
+  assert.deepEqual(groupNames(new Set(), ['solo title'], [[0]]), [[]]);
 });
 
 test('a term in two titles comes before a rarer term that scores more', () => {
-  const [name] = groupNames(new Set(), [['alpha beta', 'alpha gamma'], ['alpha delta', 'alpha epsilon', 'alpha zeta', 'alpha eta']]);
-  assert.deepEqual(name, ['alpha', 'beta', 'gamma']);
+  const titles = ['beta one', 'beta two', 'beta three', 'beta four', 'five', 'six', 'seven', 'eight'];
+  const [name] = groupNames(new Set(), titles, [[0, 1], [2, 3, 4, 5, 6, 7]]);
+  assert.deepEqual(name, ['beta', 'one', 'two']);
 });
 
 test('mds lays three points in a row along one axis and centres the other', () => {

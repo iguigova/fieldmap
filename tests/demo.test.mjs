@@ -42,7 +42,7 @@ test('the demo opens the fieldmap folder of whatever address the page is at', as
   assert.deepEqual(calls[0], ['goto', 'http://127.0.0.1:9999/fieldmap/']);
 });
 
-test('the demo types a topic, builds its path and waits for it', async () => {
+test('the demo types a topic, builds its path, waits for it and shows its groups', async () => {
   const { page, calls } = fakePage('http://127.0.0.1:9999/');
   await walk(page);
   const keys = calls.filter(([kind, selector]) => kind === 'press' && selector === '#topic').map(([, , key]) => key);
@@ -50,7 +50,7 @@ test('the demo types a topic, builds its path and waits for it', async () => {
   const at = (call) => calls.findIndex((c) => JSON.stringify(c) === JSON.stringify(call));
   const steps = [
     ['scroll', '#topic-form'], ['click', '#topic'], ['click', '#topic-form button'],
-    ['wait', '#topic-path h3', { timeout: 60000 }], ['scroll', '#topic-path'],
+    ['wait', '#topic-path h3', { timeout: 60000 }], ['scroll', '#topic-path'], ['scroll', '.topic-map'],
   ].map(at);
   assert.ok(steps.every((i, k) => i >= 0 && (k === 0 || i > steps[k - 1])), JSON.stringify(steps));
 });

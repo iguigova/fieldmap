@@ -2,7 +2,8 @@
 // of the finished GIF. Run it through a Playwright `page` started in the site
 // root and already open at that folder's served address, whatever its port;
 // FRAMES is relative to the site root and starts empty. The walk reads one
-// topic's path, which costs about 13 of OpenAlex's free daily credits.
+// topic's path and its groups, which cost about 20 of OpenAlex's free daily
+// credits.
 // docs/make_demo.sh turns the frames into the GIF.
 async (page) => {
   const BASE = new URL('/fieldmap/', page.url()).href;
@@ -84,7 +85,9 @@ async (page) => {
   await page.waitForSelector('#topic-path h3', { timeout: 60000 });
   await hold(6);
   await scrollTo('#topic-path', 14, 12);
-  await hold(34);
+  await hold(24);
+  await scrollTo('.topic-map', 16, 60);             // the topic's groups, on a small map
+  await hold(40);
   await scrollTo('header', 16, 40);
   await click('.theme-switch');                     // and in the dark
   await hold(10);

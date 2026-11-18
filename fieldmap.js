@@ -296,6 +296,8 @@ const POWER_STEPS = 100;
 
 const total = (values) => values.reduce((a, b) => a + b, 0);
 
+const counted = (items) => items.reduce((counts, x) => counts.set(x, (counts.get(x) ?? 0) + 1), new Map());
+
 const unit = (weights) => {
   const norm = Math.hypot(...weights.values());
   return new Map([...weights].map(([k, x]) => [k, x / norm]));
@@ -308,7 +310,7 @@ const cosine = (a, b) => total([...a].map(([k, x]) => x * (b.get(k) ?? 0)));
 // half or more links nearly everything, so both are left out.
 export const couplingVectors = (works) => {
   const sets = works.map((w) => [...new Set(w.referenced_works.map(shortId))]);
-  const df = sets.flat().reduce((counts, r) => counts.set(r, (counts.get(r) ?? 0) + 1), new Map());
+  const df = counted(sets.flat());
   const shared = (r) => df.get(r) >= 2 && df.get(r) * 2 < works.length;
   return sets.map((refs) => unit(new Map(refs.filter(shared).map((r) => [r, Math.log(works.length / df.get(r))]))));
 };
@@ -403,34 +405,34 @@ const overlaps = (term, chosen) => {
 export const pickName = (ranked) =>
   ranked.reduce((chosen, t) => (chosen.length < NAME_TERMS && !overlaps(t, chosen) ? [...chosen, t] : chosen), []);
 
-// The maps' values summed by key. Its sums are read only as ratios: a term's
-// share of all terms, and the cosine between two groups' centres.
-const summed = (maps) => maps.reduce((sum, m) => {
-  m.forEach((x, k) => sum.set(k, (sum.get(k) ?? 0) + x)); // mutation: equivalent — negating every sum leaves each ratio read from them unchanged
-  return sum;
-}, new Map());
-
-const termCounts = (stopWords, titles) => titles.flatMap((t) => titleTerms(stopWords, t ?? ''))
-  .reduce((counts, t) => counts.set(t, (counts.get(t) ?? 0) + 1), new Map());
-
-// Each group's name, by class-based TF-IDF as the pipeline names a subfield:
-// a term's count in the group, times log(1 + the mean terms per group / the
-// term's count in every group); the pipeline's division by the group's size
-// changes no order within a group. A term in two or more of the group's
-// titles comes first, then the higher score, then the alphabet.
-export const groupNames = (stopWords, titlesByGroup) => {
-  const counts = titlesByGroup.map((titles) => termCounts(stopWords, titles));
-  const all = summed(counts);
-  const mean = total([...all.values()]) / counts.length;
-  return counts.map((c) => {
-    const score = (t) => c.get(t) * Math.log1p(mean / all.get(t));
+// Each group's name from its works' titles. A term scores its count in the
+// group times log(the works / the works whose title holds it), as a cited work
+// is weighted in couplingVectors: the works came from one search or one work's
+// citations, so a word in every title tells no group apart and is left out. A
+// term in two or more of the group's titles comes first, then the higher
+// score, then the alphabet.
+export const groupNames = (stopWords, titles, groups) => {
+  const terms = titles.map((t) => titleTerms(stopWords, t ?? ''));
+  const df = counted(terms.flatMap((ts) => [...new Set(ts)]));
+  const weight = (t) => Math.log(titles.length / df.get(t));
+  return groups.map((g) => {
+    const c = counted(g.flatMap((i) => terms[i]));
+    const score = (t) => c.get(t) * weight(t);
     const shared = (t) => Number(c.get(t) > 1);
-    const ranked = [...c.keys()].toSorted((a, b) => shared(b) - shared(a) || score(b) - score(a) || (a < b ? -1 : 1)); // mutation: equivalent — a and b are distinct Map keys, so a <= b and a < b agree
+    const telling = [...c.keys()].filter((t) => weight(t) > 0);
+    const ranked = telling.toSorted((a, b) => shared(b) - shared(a) || score(b) - score(a) || (a < b ? -1 : 1)); // mutation: equivalent — a and b are distinct Map keys, so a <= b and a < b agree
     return pickName(ranked);
   });
 };
 
 // ---- A topic's small map ----------------------------------------------------
+
+// The maps' values summed by key. Its sums are read only as ratios: the cosine
+// between two groups' centres.
+const summed = (maps) => maps.reduce((sum, m) => {
+  m.forEach((x, k) => sum.set(k, (sum.get(k) ?? 0) + x)); // mutation: equivalent — negating every sum leaves each ratio read from them unchanged
+  return sum;
+}, new Map());
 
 const centroid = (vectors) => unit(summed(vectors));
 
@@ -484,7 +486,7 @@ export const topicMap = (stopWords, works) => {
   const centres = groups.map((g) => centroid(g.map((i) => vectors[i])));
   const alike = centres.map((a) => centres.map((b) => cosine(a, b)));
   const { x, y } = mds(alike.map((row) => row.map((s) => Math.sqrt(Math.max(0, 2 - 2 * s)))));
-  const names = groupNames(stopWords, groups.map((g) => g.map((i) => works[i].title)));
+  const names = groupNames(stopWords, works.map((w) => w.title), groups);
   const near = nearestGroups(alike);
   return groups.map((g, id) => ({
     id, name: names[id].length ? names[id] : [`group ${id + 1}`], size: g.length, x: x[id], y: y[id], near: near[id], works: g.map((i) => works[i]),
