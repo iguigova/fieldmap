@@ -81,12 +81,22 @@ FRONT_MATTER_TITLES = {
     "thanks to our reviewers",
 }
 # What a publisher adds to an abstract: a LaTeX preamble around a formula,
-# and a copyright notice from its start to the end of the abstract.
+# and a copyright notice or a list of supporting files and the notice
+# disowning them, from its start to the end of the abstract.
 LATEX = re.compile(r"\\documentclass.*?\\end\{document\}", re.S)
 COPYRIGHT = re.compile(
     r"\s*(?:\(PsycINFO Database Record|(?:Copyright\s*)?©|\(c\) \d{4}).*$",
     re.I | re.S,
 )
+SUPPORTING = re.compile(
+    r"\s*(?:(?:Supporting Information|Supporting info item"
+    r"|(?:Appendix|Video|Figure|Table|Data) S\d+:?(?: Legend)?)\s*)*"
+    r"Please note: The publisher is not responsible.*$",
+    re.I | re.S,
+)
+# Longer than any abstract the journals allow: OpenAlex then holds the
+# article's own text, which groups papers by how they are written.
+ABSTRACT_WORDS = 500
 DIMENSIONS = 100
 # The map is clustered with the first seed; the rest rerun it to test it.
 SEEDS = (0, 1, 2, 3, 4)
@@ -130,11 +140,16 @@ def short_id(url: str) -> str:
 
 
 def own_words(text: str) -> str:
-    return COPYRIGHT.sub("", LATEX.sub(" ", text))
+    return SUPPORTING.sub("", COPYRIGHT.sub("", LATEX.sub(" ", text)))
+
+
+def abstract_words(text: str) -> str:
+    words = own_words(text)
+    return "" if len(words.split()) > ABSTRACT_WORDS else words
 
 
 def paper(work: dict) -> Paper:
-    words = own_words(abstract(work["abstract_inverted_index"]))
+    words = abstract_words(abstract(work["abstract_inverted_index"]))
     return Paper(
         id=short_id(work["id"]),
         doi=short_doi(work.get("doi")),

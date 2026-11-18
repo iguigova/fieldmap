@@ -263,9 +263,24 @@ def test_an_abstract_keeps_only_its_authors_words():
         "Fit. © 2015 The Authors.",
         "Fit. (PsycInfo Database Record (c) 2025 APA, all rights reserved).",
         "Fit. (PsycINFO Database Record",
+        "Fit. Please note: The publisher is not responsible for the content.",
+        "Fit. Appendix S1 Video S1 Legend Please note: The publisher is not "
+        "responsible for the content or functionality of any supporting "
+        "information supplied by the authors.",
+        "Fit. Supporting info item Please note: The publisher is not "
+        "responsible.",
     ):
         assert build.own_words(notice) == "Fit."
     assert build.own_words("copyright-free images") == "copyright-free images"
+    assert build.own_words("see Appendix S1 for code") == (
+        "see Appendix S1 for code"
+    )
+
+
+def test_an_abstract_longer_than_any_journal_allows_is_the_article():
+    longest = " ".join(["word"] * build.ABSTRACT_WORDS)
+    assert build.abstract_words(longest) == longest
+    assert build.abstract_words(longest + " more") == ""
 
 
 def bare(n: int, cites: list[str], title: str) -> dict:
