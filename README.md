@@ -233,11 +233,11 @@ the package without being about it.
   subfield's papers from 2021 to 2025. Nearly all of those papers name an
   institution; 76% name a funder in biostatistics, 83% in ecology, 66% in
   epidemiology and 54% in psychology methods. OpenAlex sometimes credits a paper to
-  the wrong person of the same name: of 59 recent biostatistics papers
+  the wrong person of the same name: of 58 recent biostatistics papers
   it credits to Yale's Fan Li, one is by Duke's Fan Li, and one by both
   credits both to Yale's. It names a funder and its parts separately: of
-  580 recent biostatistics papers that name the National Cancer
-  Institute, 396 also name the National Institutes of Health, and only
+  581 recent biostatistics papers that name the National Cancer
+  Institute, 397 also name the National Institutes of Health, and only
   those count for both.
 - **Venues:** each field's journals above, and no others. OpenAlex gives
   each one's fee for the latest year it lists, whether it is fully open
