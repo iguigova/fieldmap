@@ -283,6 +283,12 @@ def test_an_abstract_longer_than_any_journal_allows_is_the_article():
     assert build.abstract_words(longest + " more") == ""
 
 
+def test_an_abstract_too_short_to_describe_a_paper_is_none():
+    shortest = " ".join(["word"] * build.FEWEST_WORDS)
+    assert build.abstract_words(shortest) == shortest
+    assert build.abstract_words(shortest.removesuffix(" word")) == ""
+
+
 def bare(n: int, cites: list[str], title: str) -> dict:
     return work(n, "bare", "x") | {
         "abstract_inverted_index": None,

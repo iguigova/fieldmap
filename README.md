@@ -17,7 +17,7 @@ grey circles, one per subfield, and links to the other fields under its
 title. Clicking "Try a sample reading list" fills eight circles with a
 count of the reader's papers and turns the other 32 into hollow dashed
 circles. Below the map, the 32 gaps are listed; opening one shows the
-reviews to start with. Twelve circle names are in italics, the soft
+reviews to start with. Nine circle names are in italics, the soft
 subfields. Typing "missing data imputation" into the topic box gives a
 reading path from 200 papers OpenAlex found: five reviews to start with,
 then the older works they build on, in reading order. Below it, a small
@@ -135,10 +135,10 @@ the package without being about it.
 
 | Field | Journals | Papers, 2015–2025 | Subfields |
 |---|---|---|---|
-| Biostatistics | 8 | 11,295 | 40 |
-| Ecology | 10 | 19,703 | 40 |
-| Epidemiology | 8 | 15,116 | 40 |
-| Psychology methods | 11 | 7,086 | 40 |
+| Biostatistics | 8 | 11,281 | 40 |
+| Ecology | 10 | 19,666 | 40 |
+| Epidemiology | 8 | 15,086 | 40 |
+| Psychology methods | 11 | 7,078 | 40 |
 
 - **Papers:** every article OpenAlex lists in the field's journals from
   2015 to 2025. A subfield that publishes mostly in other journals looks
@@ -166,28 +166,29 @@ the package without being about it.
   same work. Each is named by the five words that set it apart from the
   rest, such as *missing, imputation, mi, multiple, missingness* in
   biostatistics. Some are topics rather than methods, such as *covid*.
-  Report words name a few in epidemiology, such as *mortality, hr, cause,
-  ci, years*, a soft subfield of 565 papers. Three are named by the text
-  around an article rather than its topic: ecology's *org, https, doi,
-  figshare, s1*, 130 papers, and epidemiology's *et al, epidemiology,
-  journal, doi, authors*, 265, and *university, author, department,
-  email, conflicts*, 153.
+  Report words name a few in epidemiology, such as *mortality, cause,
+  death, deaths, hr*, a soft subfield of 504 papers. Epidemiology's
+  *research, epidemiology, public, policy, university*, 681 papers, holds
+  commentary on the field itself and letters, whose author affiliations
+  put *university* in its name.
 - **Papers without an abstract:** they take no part in building the
   subfields, since a title alone groups with other titles rather than
   with its topic. An abstract longer than 500 words counts as none: no
   journal here allows one that long, and OpenAlex then holds the
-  article's own text. Each is placed by the works it cites, then by its
-  title, and left off the map when neither matches: 447 of 482 are
-  placed in biostatistics, 2,297 of 2,741 in ecology, 4,879 of 5,150 in
-  epidemiology and 1,235 of 1,260 in psychology methods.
+  article's own text. So does one shorter than 50 words: OpenAlex then
+  holds a data-availability line, a correction, an author list, an
+  affiliation or a fragment of the abstract. Each is placed by the works
+  it cites, then by its title, and left off the map when neither matches: 506 of 555 are
+  placed in biostatistics, 2,417 of 2,898 in ecology, 4,967 of 5,268 in
+  epidemiology and 1,338 of 1,371 in psychology methods.
 - **Placement:** a paper in the map's journals is matched by its DOI. Any
   other paper with a DOI is placed by the works it cites, as OpenAlex lists
   them. A paper whose citations match no subfield, or that has no DOI, is
   placed by the words in its title, and left unplaced when its title
   matches no subfield closely. On a fifth of each map's own papers, held
   back while the rest built the subfields, citations picked the paper's
-  own subfield 67% of the time in biostatistics, 64% in ecology, 43% in
-  epidemiology and 67% in psychology methods, and title words 55%, 47%,
+  own subfield 67% of the time in biostatistics, 62% in ecology, 46% in
+  epidemiology and 68% in psychology methods, and title words 51%, 47%,
   51% and 56%.
   Epidemiology's papers cite clinical work widely, and OpenAlex lists no
   references for a third of the International Journal of Epidemiology's.
@@ -195,17 +196,17 @@ the package without being about it.
 - **Reviews:** the works OpenAlex types as reviews in the same journals
   and years. They take no part in building the subfields; each is placed
   by the works it cites, as an outside paper is. Biostatistics places
-  525 of 545, and one of its subfields gets none: *recurrent, events*.
-  Ecology places 544 of 548, and one gets none: *org, https*.
-  Epidemiology places 1,419 of 1,559, and every subfield gets some.
-  Psychology methods places 99 of 104, and 12 subfields get none. Some
-  are systematic reviews of a clinical question rather than
+  526 of 545, and two of its subfields get none: *cure, mixture* and
+  *recurrent, events*. Ecology places 544 of 548, and every subfield
+  gets some. Epidemiology places 1,420 of 1,559, and every subfield gets
+  some. Psychology methods places 99 of 104, and 11 subfields get none.
+  Some are systematic reviews of a clinical question rather than
   introductions to a method. Opening the
   list asks OpenAlex for the 50 most-cited reviews from any journal and
   year citing the subfield's five core works, the five it cites most
   tellingly, and adds the first five that place in the subfield and are
-  not already listed. On 2026-11-18, psychology methods' *word, words,
-  norms, language, semantic*, which has none of the map's reviews, got
+  not already listed. On 2026-11-19, psychology methods' *word, words,
+  norms, semantic, language*, which has none of the map's reviews, got
   five, among them *Semantic memory: A review of methods, models, and
   current challenges* and *The ubiquity of frequency effects in first
   language acquisition*.
@@ -213,25 +214,25 @@ the package without being about it.
   each placed after the ones of the ten it cites, and the most cited
   first otherwise. A loop of papers citing each other starts at its most
   cited. Each says which earlier entries it builds on. A subfield's ten
-  hold a median of three that build on another in epidemiology, three
-  and a half in biostatistics, four in ecology and five in psychology
-  methods; four epidemiology subfields hold none, and one each in
+  hold a median of three that build on another in epidemiology and
+  biostatistics, four in ecology and five in psychology methods; four
+  epidemiology subfields hold none, and one each in biostatistics,
   ecology and psychology methods. The maps start in 2015, so a classic from before
   then is not in the order.
 - **New papers:** the page asks OpenAlex, when the list is opened, for
   the 50 newest works dated from the map's last year to today that cite
   any of the subfield's five core works, and shows the first five that
-  place in that subfield by what they cite. On 2026-11-18, every
+  place in that subfield by what they cite. On 2026-11-19, every
   subfield of biostatistics, epidemiology and psychology methods showed
-  five, and 37 of ecology's 40; of the works asked for, 1,504 of 2,000
-  placed back in biostatistics, 885 of 1,958 in ecology, 1,600 of 1,983
-  in epidemiology and 1,424 of 2,000 in psychology methods.
+  five, and 38 of ecology's 40; of the works asked for, 1,480 of 2,000
+  placed back in biostatistics, 889 of 2,000 in ecology, 1,677 of 2,000
+  in epidemiology and 1,405 of 1,974 in psychology methods.
   `node docs/new_papers.mjs <slug>…` asks again and prints these counts. Many apply a method rather
   than develop it, such as a cohort study of mortality after heart-valve
   replacement under biostatistics' joint-modelling subfield.
 - **Who:** the authors, institutions and funders OpenAlex records on a
   subfield's papers from 2021 to 2025. Nearly all of those papers name an
-  institution; 76% name a funder in biostatistics, 83% in ecology, 66% in
+  institution; 77% name a funder in biostatistics, 83% in ecology, 66% in
   epidemiology and 54% in psychology methods. OpenAlex sometimes credits a paper to
   the wrong person of the same name: of 58 recent biostatistics papers
   it credits to Yale's Fan Li, one is by Duke's Fan Li, and one by both
@@ -260,7 +261,9 @@ setting.
    pictures. A paper's text is its title and abstract, less a LaTeX
    preamble around a formula, a publisher's copyright notice and its
    notice on supporting information. An abstract over 500 words is the
-   article's own text, and the paper is taken as having none.
+   article's own text, and one under 50 is a line about the article or
+   a fragment of its abstract; either way the paper is taken as having
+   none.
 2. **Words.** Each paper becomes a TF-IDF vector of single words and
    two-word phrases, with sublinear term frequency. English stop words
    are dropped, along with words every methods abstract uses, such as
@@ -334,7 +337,7 @@ must name a group, and four of five held back must.
   cardiovascular, infectious disease, perinatal) and four of five held
   back (diet, air pollution, mental health, research methods, social
   inequality). Research methods is missed; the nearest group is
-  *guidelines, guideline, evidence, recommendations, reviews*.
+  *guidelines, guideline, evidence, reviews, recommendations*.
 - **Psychology methods:** all five named (structural equation modeling,
   item response theory, missing data, meta-analysis, Bayesian methods)
   and all five held back (multilevel and longitudinal, mediation,
@@ -344,34 +347,32 @@ must name a group, and four of five held back must.
 
 `uv run fieldmap stability` reruns k-means on the same vectors at
 k = 30, 40 and 50, each with seeds 0 to 4, and compares the runs as step
-9 does. On each map's data, run 2026-11-18:
+9 does. On each map's data, run 2026-11-19:
 
 | Field | k | Seeds agree (mean adjusted Rand index, seed 0 against 1–4) | Groups found again under another seed | The map's 40 groups found at this k, seed 0 | Runs passing the check |
 |---|---|---|---|---|---|
-| Biostatistics | 30 | 0.56 | 69% | 50% | 4 of 5 |
-| | 40 | 0.63 | 74% | 100% | 5 of 5 |
-| | 50 | 0.69 | 77% | 72% | 5 of 5 |
-| Ecology | 30 | 0.63 | 78% | 52% | 3 of 5 |
-| | 40 | 0.70 | 83% | 100% | 5 of 5 |
-| | 50 | 0.77 | 86% | 90% | 5 of 5 |
-| Epidemiology | 30 | 0.59 | 69% | 60% | 4 of 5 |
-| | 40 | 0.61 | 77% | 100% | 5 of 5 |
-| | 50 | 0.63 | 73% | 80% | 5 of 5 |
-| Psychology methods | 30 | 0.60 | 72% | 57% | 3 of 5 |
-| | 40 | 0.64 | 77% | 100% | 5 of 5 |
-| | 50 | 0.69 | 77% | 75% | 5 of 5 |
+| Biostatistics | 30 | 0.57 | 75% | 60% | 4 of 5 |
+| | 40 | 0.59 | 74% | 100% | 5 of 5 |
+| | 50 | 0.61 | 70% | 82% | 5 of 5 |
+| Ecology | 30 | 0.63 | 77% | 55% | 2 of 5 |
+| | 40 | 0.71 | 82% | 100% | 3 of 5 |
+| | 50 | 0.76 | 85% | 90% | 5 of 5 |
+| Epidemiology | 30 | 0.64 | 74% | 62% | 4 of 5 |
+| | 40 | 0.59 | 74% | 100% | 5 of 5 |
+| | 50 | 0.63 | 77% | 72% | 5 of 5 |
+| Psychology methods | 30 | 0.60 | 76% | 65% | 4 of 5 |
+| | 40 | 0.67 | 73% | 100% | 5 of 5 |
+| | 50 | 0.67 | 70% | 72% | 5 of 5 |
 
 About three in four of a map's groups come back under another seed; the
 rest split or merge differently from run to run. Of the 40 groups, the
-four reruns all find 20 in biostatistics, 22 in ecology, 18 in
-epidemiology and 24 in psychology methods, and none find 2, 2, 5 and 3.
-Each map's largest group is soft: biostatistics' *bayesian, latent,
-regression*, with 756 papers, ecology's *ecosystem, ecosystems,
-vegetation*, with 1,129, epidemiology's *prevalence, care, women*, with
-882, and psychology methods' *bayesian, regression, variables*, with 572,
-are each found again in at most two reruns. k = 40 is no clear optimum:
-every map's seeds agree more at k = 50, and every run at k = 40 passes
-its check.
+four reruns all find 21 in biostatistics, 27 in ecology, 19 in
+epidemiology and 25 in psychology methods, and none find 6, 0, 4 and 3.
+Two maps' largest group is found again in no rerun: biostatistics'
+*regression, markov, bayesian*, with 851 papers, and psychology methods'
+*size, effect, sample*, with 449. k = 40 is no clear optimum: seeds
+agree at least as much at k = 50 on every map, and ecology's check
+passes in three of five runs at k = 40 and five of five at k = 50.
 
 Each field is one file under `src/fieldmap/fields/`: its name, journals,
 years, number of groups, the subfields its check needs and, when one was

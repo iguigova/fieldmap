@@ -97,6 +97,9 @@ SUPPORTING = re.compile(
 # Longer than any abstract the journals allow: OpenAlex then holds the
 # article's own text, which groups papers by how they are written.
 ABSTRACT_WORDS = 500
+# Shorter, OpenAlex holds a data-availability line, a correction, an author
+# list, an affiliation or a fragment: too little to group a paper by topic.
+FEWEST_WORDS = 50
 DIMENSIONS = 100
 # The map is clustered with the first seed; the rest rerun it to test it.
 SEEDS = (0, 1, 2, 3, 4)
@@ -145,7 +148,8 @@ def own_words(text: str) -> str:
 
 def abstract_words(text: str) -> str:
     words = own_words(text)
-    return "" if len(words.split()) > ABSTRACT_WORDS else words
+    fits = FEWEST_WORDS <= len(words.split()) <= ABSTRACT_WORDS
+    return words if fits else ""
 
 
 def paper(work: dict) -> Paper:

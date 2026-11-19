@@ -1,8 +1,9 @@
 import dataclasses
+from collections import defaultdict
 
 import pytest
 
-from fieldmap import fields
+from fieldmap import build, fields
 
 THEMES = {
     "spatial": "spatial disease mapping region neighbour county smoothing",
@@ -15,8 +16,16 @@ def ref(theme: str, n: int) -> str:
     return f"https://openalex.org/W{theme}{n}"
 
 
+# An abstract of its words, padded with a stop word to count as one.
+def inverted_index(words: str) -> dict[str, list[int]]:
+    inverted = defaultdict(list)
+    for i, w in enumerate(words.split() + ["the"] * build.FEWEST_WORDS):
+        inverted[w].append(i)
+    return dict(inverted)
+
+
 def work(n: int, theme: str, words: str) -> dict:
-    inverted = {w: [i] for i, w in enumerate(words.split())}
+    inverted = inverted_index(words)
     return {
         "id": f"https://openalex.org/W{theme}{n}",
         "doi": f"https://doi.org/10.1/{theme.upper()}{n}",
