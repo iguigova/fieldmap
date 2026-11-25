@@ -423,6 +423,14 @@ through that page. It records frames into `docs/frames/`, and
 topic's reading path and its groups, so it uses about 20 OpenAlex
 credits.
 
+## Who cites a paper
+
+Fieldmap maps a field; it does not follow the citations to one paper.
+For that, [Semantic Scholar](https://www.semanticscholar.org) emails each
+new paper that cites one: open the paper's page and choose *Create
+Alert*. [Google Scholar](https://scholar.google.com) has citation alerts
+too.
+
 ## Extend it
 
 Each of these is a change to the pipeline and the page, and open to a
