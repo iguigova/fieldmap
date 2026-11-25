@@ -67,6 +67,10 @@ what those papers cite. Opening *Reviews to start with* or *New papers
 citing it* asks OpenAlex too, with the works that subfield cites, and
 sends nothing from the file.
 
+The page counts its visits with Google Analytics, which sets cookies.
+It sends each page's address, which holds the field and any topic
+typed, and nothing from the file.
+
 For a topic outside the four fields, type it, or a paper's DOI, under
 *Any topic* and choose *Build a reading path*. The page asks OpenAlex
 for the works on it and lists its reviews to start with, a reading order,
